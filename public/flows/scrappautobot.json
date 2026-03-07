@@ -1,0 +1,111 @@
+{
+  "workflow": "ScrappAutoBot Evaluation Flow",
+  "language": "en",
+  "steps": [
+    {
+      "step": "welcome",
+      "bot_message": "Hello! I'm ScrappAutoBot. I'm going to ask you a few questions to evaluate your car for scrapping. Say 'yes' to start.",
+      "user_response_type": "confirmation",
+      "ack": "Great! Let's begin."
+    },
+    {
+      "step": "name",
+      "bot_message": "May I have your full name please?",
+      "schema_keys": ["name"],
+      "ack": "Thank you!"
+    },
+    {
+      "step": "phone_email",
+      "bot_message": "May I have your phone number and your email address please?",
+      "schema_keys": ["phone", "email"],
+      "ack": "Thank you!"
+    },
+    {
+      "step": "address",
+      "bot_message": "Could you provide me your full address, including city, province and postal code please?",
+      "schema_keys": ["address", "city", "province", "postalCode"],
+      "ack": "Thank you!"
+    },
+    {
+      "step": "make_model_year",
+      "bot_message": "Now to make you a good estimation, I need vehicle info. Could you give me the Make, Model, and year of your auto please?",
+      "schema_keys": ["make", "model", "year"],
+      "ack": "Thank you!"
+    },
+    {
+      "step": "transmission_type_driveline",
+      "bot_message": "What's the transmission, Type, and driveline please?",
+      "schema_keys": ["transmission", "vehicleType", "driveline"],
+      "ack": "Thank you!"
+    },
+    {
+      "step": "runs",
+      "bot_message": "Does the car run?",
+      "schema_keys": ["runs"],
+      "user_response_type": "boolean",
+      "ack": "Ok!"
+    },
+    {
+      "step": "missingParts",
+      "bot_message": "Any major missing parts like the Catalytic converter, Engine, Transmission, Battery, or Wheels?",
+      "schema_keys": ["missingParts"],
+      "ack": "Ok!"
+    },
+    {
+      "step": "mechanicalIssues",
+      "bot_message": "Any mechanical issues?",
+      "schema_keys": ["hasMechanicalIssues"],
+      "user_response_type": "boolean",
+      "ack": "Ok!"
+    },
+    {
+      "step": "bodyDamage",
+      "bot_message": "Does it have any body damage?",
+      "schema_keys": ["hasBodyDamage"],
+      "user_response_type": "boolean",
+      "ack": "Good!"
+    },
+    {
+      "step": "rust",
+      "bot_message": "Is the car rusted?",
+      "schema_keys": ["hasRust"],
+      "user_response_type": "boolean",
+      "ack": "Ok!"
+    },
+    {
+      "step": "wheelType",
+      "bot_message": "Does it have alloy Rims or steel Mags?",
+      "schema_keys": ["wheelType"],
+      "ack": "Ok, good!"
+    },
+    {
+      "step": "accident",
+      "bot_message": "Was the car in an accident?",
+      "schema_keys": ["accident"],
+      "user_response_type": "boolean",
+      "ack": "Ok!"
+    },
+    {
+      "step": "isComplete",
+      "bot_message": "Last questions before the valuation, please. Is the car complete?",
+      "schema_keys": ["isComplete"],
+      "user_response_type": "boolean",
+      "ack": "Ok, great we have everything we need. Now we will evaluate your car and give you an offer. Please hold a moment!"
+    },
+    {
+      "step": "evaluation",
+      "logic": "calculate_offer"
+    },
+    {
+      "step": "accept_offer",
+      "bot_message": "We offer you %s. Do you accept?",
+      "user_response_type": "confirmation",
+      "ack": "Perfect! Your pickup will be scheduled shortly."
+    },
+    {
+      "step": "navigate_to_towing",
+      "logic": "navigate_to_towing",
+      "bot_message": "Connecting you to the towing service and finalizing your booking..."
+    }
+  ]
+}

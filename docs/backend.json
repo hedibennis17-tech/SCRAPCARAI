@@ -1,0 +1,60 @@
+
+{
+  "entities": {
+    "Client": {
+      "title": "Client",
+      "type": "object",
+      "description": "Represents a client interacting with the CarWizardAI application.",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "email": { "type": "string", "format": "email" }
+      }
+    },
+    "Vehicle": {
+      "title": "Vehicle",
+      "type": "object",
+      "description": "Represents a vehicle being assessed.",
+      "properties": {
+        "id": { "type": "string" },
+        "make": { "type": "string" },
+        "model": { "type": "string" },
+        "year": { "type": "number" },
+        "vin": { "type": "string" },
+        "issues": { "type": "string" }
+      }
+    },
+    "Assessment": {
+      "title": "Assessment",
+      "type": "object",
+      "description": "Represents a vehicle assessment.",
+      "properties": {
+        "id": { "type": "string" },
+        "conditionScore": { "type": "number" },
+        "repairRecommendations": { "type": "string" },
+        "priceEstimate": { "type": "number" }
+      }
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+     "/assessments/{assessmentId}": {
+        "schema": { "$ref": "#/entities/Assessment" },
+        "description": "Stores all vehicle assessments from anonymous users."
+      },
+      "/clients/{clientId}": {
+        "schema": { "$ref": "#/entities/Client"},
+        "description": "Stores documents for authenticated clients."
+      },
+      "/clients/{clientId}/assessments/{assessmentId}": {
+         "schema": { "$ref": "#/entities/Assessment" },
+         "description": "Sub-collection for assessments belonging to a specific client."
+      }
+  }
+}

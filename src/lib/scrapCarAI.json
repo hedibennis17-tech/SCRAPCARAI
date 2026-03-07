@@ -1,0 +1,48 @@
+{
+  "scrapCarAI": {
+    "admin_email": "hedibennis17@gmail.com",
+    "fields": {
+      "contact_information": {
+        "name": "Hassan Adb",
+        "email_client": "mohamedbennis7@gmail.com",
+        "phone": "5142225555",
+        "address": "123 HIHIHIHI, LAVAL, Quebec, H7W 3G5"
+      },
+      "vehicle_details": {
+        "make": "Cadillac",
+        "model": "Escalade",
+        "year": "2011",
+        "mileage": "150000 km",
+        "transmission": "Automatic",
+        "driveline": "AWD",
+        "vehicle_type": "Pickup",
+        "vin": "N/A"
+      },
+      "vehicle_condition": {
+        "does_it_run": "Yes",
+        "accidented": "No",
+        "missing_major_parts": "None",
+        "mechanical_issues": "No",
+        "has_rust": "No",
+        "wheel_type": "Rims",
+        "body_damage": "No",
+        "is_complete": "Yes"
+      },
+      "towing_appointment": {
+        "pickup_location": "123 HIHIHIHI, LAVAL",
+        "parking_spot": "Private parking",
+        "pickup_date": "10/23/2025",
+        "time_slot": "PM"
+      },
+      "ai_valuation": {
+        "offer_price": "$515"
+      },
+      "summary": "Résumé final généré par le système avec toutes les informations ci-dessus."
+    },
+    "email_template": {
+      "subject": "SCRAP CAR AI - Résumé de votre demande",
+      "body": "Bonjour {name},\n\nVoici le résumé de votre demande d'estimation :\n\n{summary}\n\nMerci."
+    },
+    "send_on_summary_ready": true
+  }
+}
