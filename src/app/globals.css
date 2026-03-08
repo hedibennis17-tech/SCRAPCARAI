@@ -218,17 +218,17 @@
   font-size: 0.88rem !important;
   letter-spacing: 0.01em !important;
   color: white !important;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.12) inset, 0 4px 18px rgba(192,48,63,0.4) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.12) inset, 0 4px 18px var(--t-primary-glow) !important;
   transition: all 0.18s cubic-bezier(0.4,0,0.2,1) !important;
 }
 .saas-bg .bg-primary:hover {
   background: linear-gradient(135deg, #d8404d 0%, #ae2838 100%) !important;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.16) inset, 0 6px 26px rgba(192,48,63,0.55) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.16) inset, 0 6px 26px var(--t-primary-glow) !important;
   transform: translateY(-1px) !important;
 }
 .saas-bg .bg-primary:active {
   transform: translateY(0px) !important;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 2px 8px rgba(192,48,63,0.3) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 2px 8px var(--t-primary-glow) !important;
 }
 
 /* Outline */
@@ -323,7 +323,7 @@
 }
 .saas-bg [role="option"]:hover,
 .saas-bg [role="option"][data-highlighted] {
-  background: rgba(192,48,63,0.14) !important;
+  background: var(--t-primary-glow) !important;
   color: white !important;
 }
 
@@ -406,7 +406,7 @@
    ============================================================ */
 .saas-bg *:focus-visible {
   outline: none !important;
-  box-shadow: 0 0 0 2px #08080c, 0 0 0 4px rgba(192,48,63,0.7) !important;
+  box-shadow: 0 0 0 2px #08080c, 0 0 0 4px var(--t-primary) !important;
 }
 
 /* ============================================================
