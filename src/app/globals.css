@@ -429,3 +429,300 @@
   .orb-dark  { width: 250px; height: 250px; }
   .orb-accent{ display: none; }
 }
+
+/* ============================================================
+   THEME SWITCHER — Floating pill UI
+   ============================================================ */
+.theme-switcher-wrap {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  font-family: 'Inter', sans-serif;
+}
+
+.theme-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px 7px 8px;
+  background: rgba(18, 18, 24, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 999px;
+  color: rgba(255,255,255,0.75);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  white-space: nowrap;
+}
+.theme-trigger:hover {
+  background: rgba(25, 25, 32, 0.95);
+  border-color: rgba(255,255,255,0.18);
+  color: white;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+}
+
+.theme-dot-active {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+
+.theme-trigger-label {
+  letter-spacing: 0.01em;
+}
+
+.theme-chevron {
+  color: rgba(255,255,255,0.4);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+.theme-chevron.open {
+  transform: rotate(180deg);
+}
+
+/* Panel */
+.theme-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: rgba(14, 14, 20, 0.97);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 16px;
+  padding: 14px;
+  min-width: 180px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04);
+  animation: panel-in 0.18s cubic-bezier(0.4,0,0.2,1);
+}
+@keyframes panel-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+.theme-panel-title {
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.1em !important;
+  color: rgba(255,255,255,0.3) !important;
+  margin-bottom: 10px !important;
+  padding: 0 4px !important;
+}
+
+.theme-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.theme-swatch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s;
+  width: 100%;
+  text-align: left;
+  position: relative;
+}
+.theme-swatch:hover {
+  background: rgba(255,255,255,0.06);
+}
+.theme-swatch.selected {
+  background: rgba(255,255,255,0.07);
+}
+
+.theme-swatch-dot {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+
+.theme-swatch-label {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: rgba(255,255,255,0.78);
+  flex: 1;
+}
+
+.theme-check {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   COLOR THEMES — CSS custom properties via data-theme
+   ============================================================ */
+
+/* ── RUBY (default) ── */
+:root,
+[data-theme="red"] {
+  --t-primary:      #c0303f;
+  --t-primary-dark: #9e2030;
+  --t-primary-glow: rgba(192,48,63,0.28);
+  --t-orb1: rgba(192,48,63,0.28);
+  --t-orb2: rgba(80,30,100,0.20);
+  --t-grid: rgba(192,48,63,0.055);
+}
+
+/* ── OCEAN ── */
+[data-theme="blue"] {
+  --t-primary:      #2563eb;
+  --t-primary-dark: #1e3a8a;
+  --t-primary-glow: rgba(37,99,235,0.28);
+  --t-orb1: rgba(37,99,235,0.25);
+  --t-orb2: rgba(14,165,233,0.15);
+  --t-grid: rgba(37,99,235,0.05);
+}
+
+/* ── FOREST ── */
+[data-theme="emerald"] {
+  --t-primary:      #059669;
+  --t-primary-dark: #064e3b;
+  --t-primary-glow: rgba(5,150,105,0.28);
+  --t-orb1: rgba(5,150,105,0.25);
+  --t-orb2: rgba(16,185,129,0.15);
+  --t-grid: rgba(5,150,105,0.05);
+}
+
+/* ── VIOLET ── */
+[data-theme="violet"] {
+  --t-primary:      #7c3aed;
+  --t-primary-dark: #3b0764;
+  --t-primary-glow: rgba(124,58,237,0.28);
+  --t-orb1: rgba(124,58,237,0.25);
+  --t-orb2: rgba(167,139,250,0.15);
+  --t-grid: rgba(124,58,237,0.05);
+}
+
+/* ── AMBER ── */
+[data-theme="amber"] {
+  --t-primary:      #d97706;
+  --t-primary-dark: #78350f;
+  --t-primary-glow: rgba(217,119,6,0.28);
+  --t-orb1: rgba(217,119,6,0.22);
+  --t-orb2: rgba(245,158,11,0.15);
+  --t-grid: rgba(217,119,6,0.05);
+}
+
+/* ── ROSE ── */
+[data-theme="rose"] {
+  --t-primary:      #e11d78;
+  --t-primary-dark: #831843;
+  --t-primary-glow: rgba(225,29,120,0.28);
+  --t-orb1: rgba(225,29,120,0.25);
+  --t-orb2: rgba(244,114,182,0.15);
+  --t-grid: rgba(225,29,120,0.05);
+}
+
+/* ============================================================
+   APPLY THEME TOKENS — override all color-dependent rules
+   ============================================================ */
+
+/* Orbs */
+[data-theme] .orb-red {
+  background: radial-gradient(circle, var(--t-orb1) 0%, transparent 65%) !important;
+}
+[data-theme] .orb-dark {
+  background: radial-gradient(circle, var(--t-orb2) 0%, transparent 65%) !important;
+}
+[data-theme] .orb-accent {
+  background: radial-gradient(circle, var(--t-orb1) 0%, transparent 65%) !important;
+  opacity: 0.6;
+}
+
+/* Grid */
+[data-theme] .grid-overlay {
+  background-image:
+    linear-gradient(var(--t-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--t-grid) 1px, transparent 1px) !important;
+}
+
+/* Card glow */
+[data-theme] .saas-bg .rounded-lg.border {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--t-primary) 15%, transparent),
+    0 32px 80px rgba(0,0,0,0.80),
+    0 0 100px color-mix(in srgb, var(--t-primary) 7%, transparent),
+    inset 0 1px 0 rgba(255,255,255,0.055) !important;
+}
+
+/* Primary buttons */
+[data-theme] .saas-bg .bg-primary {
+  background: linear-gradient(135deg, var(--t-primary) 0%, var(--t-primary-dark) 100%) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.12) inset, 0 4px 18px var(--t-primary-glow) !important;
+}
+[data-theme] .saas-bg .bg-primary:hover {
+  box-shadow: 0 1px 0 rgba(255,255,255,0.16) inset, 0 6px 26px var(--t-primary-glow) !important;
+  filter: brightness(1.1);
+}
+
+/* Input focus */
+[data-theme] .saas-bg input:focus,
+[data-theme] .saas-bg textarea:focus {
+  border-color: var(--t-primary) !important;
+  box-shadow: 0 0 0 3px var(--t-primary-glow) !important;
+}
+[data-theme] .saas-bg [data-state="open"] [role="combobox"] {
+  border-color: var(--t-primary) !important;
+  box-shadow: 0 0 0 3px var(--t-primary-glow) !important;
+}
+
+/* Stepper active bubble */
+[data-theme] .saas-bg .border-primary.bg-primary\/10 {
+  background: var(--t-primary) !important;
+  border-color: var(--t-primary) !important;
+  box-shadow: 0 0 0 3px var(--t-primary-glow) !important;
+}
+
+/* Progress bar */
+[data-theme] .saas-bg .bg-primary.transition-all {
+  background: linear-gradient(90deg, var(--t-primary), color-mix(in srgb, var(--t-primary) 70%, white 30%)) !important;
+}
+
+/* Stepper active text */
+[data-theme] .saas-bg .text-primary {
+  color: var(--t-primary) !important;
+}
+
+/* Focused ring */
+[data-theme] .saas-bg *:focus-visible {
+  box-shadow: 0 0 0 2px #08080c, 0 0 0 4px var(--t-primary) !important;
+}
+
+/* Select option hover */
+[data-theme] .saas-bg [role="option"]:hover,
+[data-theme] .saas-bg [role="option"][data-highlighted] {
+  background: color-mix(in srgb, var(--t-primary) 15%, transparent) !important;
+}
+
+/* H1 gradient (welcome) */
+[data-theme] .saas-bg h1 {
+  background: linear-gradient(135deg, #ffffff 0%, rgba(255,255,255,0.7) 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+/* Badges */
+[data-theme] .saas-bg [class*="inline-flex"][class*="rounded-full"][class*="border"] {
+  background: color-mix(in srgb, var(--t-primary) 18%, transparent) !important;
+  border-color: color-mix(in srgb, var(--t-primary) 35%, transparent) !important;
+  color: color-mix(in srgb, var(--t-primary) 90%, white 10%) !important;
+}
