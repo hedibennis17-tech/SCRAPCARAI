@@ -166,11 +166,28 @@ const content = {
     }
 }
 
+// Format number with dots: 150000 → "150.000"
+function formatMileage(val: string | number | undefined): string {
+  if (val === undefined || val === null || val === '') return '';
+  const digits = String(val).replace(/\D/g, '');
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+// Parse formatted back to number: "150.000" → 150000
+function parseMileage(formatted: string): number | undefined {
+  const raw = formatted.replace(/\./g, '');
+  const n = parseInt(raw, 10);
+  return isNaN(n) ? undefined : n;
+}
+
 export default function VehicleInfoStep({ onNext, onBack, data, lang }: VehicleInfoStepProps) {
   const c = content[lang];
   const { toast } = useToast();
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [mileageDisplay, setMileageDisplay] = useState<string>(
+    formatMileage(data.vehicle?.mileage)
+  );
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -279,12 +296,12 @@ export default function VehicleInfoStep({ onNext, onBack, data, lang }: VehicleI
               <FormField
                 control={form.control}
                 name="make"
-                render={({ field }) => (
+                render={({ field, fieldState }) => (
                   <FormItem>
                     <FormLabel>{c.makeLabel}</FormLabel>
                     <Select onValueChange={handleMakeChange} value={field.value}>
                       <FormControl>
-                        <SelectTrigger><SelectValue placeholder={c.makePlaceholder} /></SelectTrigger>
+                        <SelectTrigger className={fieldState.error ? 'border-destructive focus:ring-destructive' : ''}><SelectValue placeholder={c.makePlaceholder} /></SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         <ScrollArea className="h-72">
@@ -301,12 +318,12 @@ export default function VehicleInfoStep({ onNext, onBack, data, lang }: VehicleI
               <FormField
                 control={form.control}
                 name="model"
-                render={({ field }) => (
+                render={({ field, fieldState }) => (
                   <FormItem>
                     <FormLabel>{c.modelLabel}</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value} disabled={!selectedMake}>
                       <FormControl>
-                        <SelectTrigger><SelectValue placeholder={c.modelPlaceholder} /></SelectTrigger>
+                        <SelectTrigger className={fieldState.error ? 'border-destructive focus:ring-destructive' : ''}><SelectValue placeholder={c.modelPlaceholder} /></SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         <ScrollArea className="h-72">
@@ -326,11 +343,17 @@ export default function VehicleInfoStep({ onNext, onBack, data, lang }: VehicleI
               <FormField
                 control={form.control}
                 name="year"
-                render={({ field }) => (
+                render={({ field, fieldState }) => (
                   <FormItem>
                     <FormLabel>{c.yearLabel}</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder={c.yearPlaceholder} {...field} value={field.value ?? ''} />
+                      <Input
+                        type="number"
+                        placeholder={c.yearPlaceholder}
+                        className={fieldState.error ? 'border-destructive focus-visible:ring-destructive' : ''}
+                        {...field}
+                        value={field.value ?? ''}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -339,11 +362,23 @@ export default function VehicleInfoStep({ onNext, onBack, data, lang }: VehicleI
               <FormField
                 control={form.control}
                 name="mileage"
-                render={({ field }) => (
+                render={({ field, fieldState }) => (
                   <FormItem>
                     <FormLabel>{c.mileageLabel}</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder={c.mileagePlaceholder} {...field} value={field.value ?? ''} />
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder={lang === 'fr' ? 'ex: 150.000' : 'e.g., 150.000'}
+                        value={mileageDisplay}
+                        className={fieldState.error ? 'border-destructive focus-visible:ring-destructive' : ''}
+                        onChange={(e) => {
+                          const formatted = formatMileage(e.target.value);
+                          setMileageDisplay(formatted);
+                          field.onChange(parseMileage(formatted));
+                        }}
+                        onBlur={field.onBlur}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -376,12 +411,12 @@ export default function VehicleInfoStep({ onNext, onBack, data, lang }: VehicleI
               <FormField
                 control={form.control}
                 name="transmission"
-                render={({ field }) => (
+                render={({ field, fieldState }) => (
                   <FormItem>
                     <FormLabel>{c.transmissionLabel}</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
-                        <SelectTrigger><SelectValue placeholder={c.transmissionPlaceholder} /></SelectTrigger>
+                        <SelectTrigger className={fieldState.error ? 'border-destructive' : ''}><SelectValue placeholder={c.transmissionPlaceholder} /></SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="Automatic">Automatique</SelectItem>
@@ -395,12 +430,12 @@ export default function VehicleInfoStep({ onNext, onBack, data, lang }: VehicleI
               <FormField
                 control={form.control}
                 name="driveline"
-                render={({ field }) => (
+                render={({ field, fieldState }) => (
                   <FormItem>
                     <FormLabel>{c.drivelineLabel}</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
-                        <SelectTrigger><SelectValue placeholder={c.drivelinePlaceholder} /></SelectTrigger>
+                        <SelectTrigger className={fieldState.error ? 'border-destructive' : ''}><SelectValue placeholder={c.drivelinePlaceholder} /></SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         <ScrollArea className="h-72">
@@ -416,12 +451,12 @@ export default function VehicleInfoStep({ onNext, onBack, data, lang }: VehicleI
              <FormField
                 control={form.control}
                 name="vehicleType"
-                render={({ field }) => (
+                render={({ field, fieldState }) => (
                   <FormItem>
                     <FormLabel>{c.vehicleTypeLabel}</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
-                        <SelectTrigger><SelectValue placeholder={c.vehicleTypePlaceholder} /></SelectTrigger>
+                        <SelectTrigger className={fieldState.error ? 'border-destructive' : ''}><SelectValue placeholder={c.vehicleTypePlaceholder} /></SelectTrigger>
                       </FormControl>
                       <SelectContent>
                          <ScrollArea className="h-72">

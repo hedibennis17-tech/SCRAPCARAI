@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import twilio from 'twilio';
 import type { Assessment } from '@/types';
 
 export async function POST(request: Request) {
@@ -7,83 +6,72 @@ export async function POST(request: Request) {
     const { assessment, lang }: { assessment: Assessment; lang?: 'en' | 'fr' } = await request.json();
 
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const fromPhone = process.env.TWILIO_PHONE_NUMBER;
+    const authToken  = process.env.TWILIO_AUTH_TOKEN;
+    const fromPhone  = process.env.TWILIO_PHONE_NUMBER;
 
+    // Graceful degradation — SMS is optional
     if (!accountSid || !authToken || !fromPhone) {
-      console.error('Twilio credentials missing');
-      return NextResponse.json({ ok: false, error: 'Twilio credentials not configured' }, { status: 500 });
+      console.warn('[SMS] Twilio credentials missing — skipping SMS.');
+      return NextResponse.json({ ok: true, skipped: true, reason: 'Twilio not configured' });
     }
 
     const clientPhone = assessment?.client?.phone;
-    // En mode Twilio Trial, seuls les numéros vérifiés peuvent recevoir des SMS
-    // ADMIN_PHONE doit être un numéro vérifié dans le compte Twilio
-    const adminPhone = process.env.ADMIN_PHONE || '+14388334319';
+    const adminPhone  = process.env.ADMIN_PHONE ?? null;
 
     if (!clientPhone) {
-      return NextResponse.json({ ok: false, error: 'Client phone number missing' }, { status: 400 });
+      return NextResponse.json({ ok: false, error: 'Client phone missing' }, { status: 400 });
     }
 
+    // Dynamically import twilio to avoid SSR issues
+    const twilio = (await import('twilio')).default;
     const client = twilio(accountSid, authToken);
 
-    const vehicle = assessment.vehicle;
-    const towing = assessment.towing;
-    const valuation = assessment.valuation;
-    const summary = assessment.summary;
-    const clientName = assessment.client?.name || '';
+    const v   = assessment.vehicle;
+    const t   = assessment.towing;
+    const val = assessment.valuation;
+    const s   = assessment.summary;
+    const name = assessment.client?.name ?? '';
 
-    const pickupDate = towing?.pickupDate
-      ? new Date(towing.pickupDate).toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA')
+    const pickupDate = t?.pickupDate
+      ? new Date(t.pickupDate).toLocaleDateString(lang === 'fr' ? 'fr-CA' : 'en-CA')
       : 'N/A';
-    const timeSlot = towing?.pickupTimeSlot || 'N/A';
-    const price = valuation?.finalPrice ? `$${valuation.finalPrice.toFixed(0)}` : 'N/A';
-    const po = summary?.purchaseOrder || 'N/A';
-    const vehicleName = vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : 'N/A';
+    const price   = val?.finalPrice ? `$${val.finalPrice.toFixed(0)}` : 'N/A';
+    const po      = s?.purchaseOrder ?? 'N/A';
+    const vehicle = v ? `${v.year} ${v.make} ${v.model}` : 'N/A';
 
-    const smsBody = lang === 'fr'
-      ? `✅ SCRAP CAR AI - Confirmation\n\nBonjour ${clientName},\n\nVotre évaluation est confirmée!\n🚗 Véhicule: ${vehicleName}\n💰 Offre: ${price}\n📅 Cueillette: ${pickupDate} (${timeSlot})\n📋 Réf: ${po}\n\nNotre chauffeur vous appellera 30-60 min avant l'arrivée. Merci!`
-      : `✅ SCRAP CAR AI - Confirmation\n\nHi ${clientName},\n\nYour assessment is confirmed!\n🚗 Vehicle: ${vehicleName}\n💰 Offer: ${price}\n📅 Pickup: ${pickupDate} (${timeSlot})\n📋 Ref: ${po}\n\nOur driver will call 30-60 min before arrival. Thank you!`;
+    const clientMsg = lang === 'fr'
+      ? `✅ SCRAP CAR AI\n\nBonjour ${name},\n🚗 ${vehicle}\n💰 Offre: ${price}\n📅 Cueillette: ${pickupDate} (${t?.pickupTimeSlot ?? 'N/A'})\n📋 Réf: ${po}\n\nNotre chauffeur vous appellera 30-60 min avant l'arrivée. Merci!`
+      : `✅ SCRAP CAR AI\n\nHi ${name},\n🚗 ${vehicle}\n💰 Offer: ${price}\n📅 Pickup: ${pickupDate} (${t?.pickupTimeSlot ?? 'N/A'})\n📋 Ref: ${po}\n\nDriver will call 30-60 min before arrival. Thank you!`;
 
-    const adminSmsBody = `🔔 NEW SUBMISSION - SCRAP CAR AI\n\nClient: ${clientName}\nPhone: ${clientPhone}\nVehicle: ${vehicleName}\nOffer: ${price}\nPickup: ${pickupDate} (${timeSlot})\nRef: ${po}`;
+    const adminMsg = `🔔 NEW SCRAP CAR AI SUBMISSION\nClient: ${name} ${clientPhone}\nVehicle: ${vehicle}\nOffer: ${price}\nPickup: ${pickupDate}\nRef: ${po}`;
 
-    const results = await Promise.allSettled([
-      // SMS to client
-      client.messages.create({
-        body: smsBody,
-        from: fromPhone,
-        to: clientPhone,
-      }),
-      // SMS to admin (only if admin phone is different from Twilio number)
-      ...(adminPhone && adminPhone !== fromPhone ? [
-        client.messages.create({
-          body: adminSmsBody,
-          from: fromPhone,
-          to: adminPhone,
-        })
-      ] : []),
-    ]);
-
-    const clientResult = results[0];
-    const errors: string[] = [];
-
-    if (clientResult.status === 'rejected') {
-      console.error('SMS to client failed:', clientResult.reason);
-      errors.push(`Client SMS failed: ${clientResult.reason?.message || clientResult.reason}`);
-    } else {
-      console.log('✅ SMS to client sent:', clientResult.value.sid);
+    const sends: Promise<any>[] = [
+      client.messages.create({ body: clientMsg, from: fromPhone, to: clientPhone }),
+    ];
+    if (adminPhone && adminPhone !== fromPhone) {
+      sends.push(client.messages.create({ body: adminMsg, from: fromPhone, to: adminPhone }));
     }
 
-    if (results[1] && results[1].status === 'rejected') {
-      console.error('SMS to admin failed:', (results[1] as PromiseRejectedResult).reason);
-    }
+    const results = await Promise.allSettled(sends);
 
-    if (errors.length > 0) {
-      return NextResponse.json({ ok: false, errors }, { status: 500 });
-    }
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') {
+        console.log(`✅ SMS[${i}] sent:`, r.value.sid);
+      } else {
+        console.error(`❌ SMS[${i}] failed:`, r.reason?.message ?? r.reason);
+      }
+    });
 
-    return NextResponse.json({ ok: true, messageSid: (clientResult as PromiseFulfilledResult<any>).value?.sid });
+    const clientOk = results[0].status === 'fulfilled';
+    return NextResponse.json({
+      ok: clientOk,
+      sid: clientOk ? (results[0] as PromiseFulfilledResult<any>).value.sid : null,
+      errors: results.filter(r => r.status === 'rejected').map(r => (r as PromiseRejectedResult).reason?.message),
+    });
+
   } catch (err: any) {
-    console.error('Error in /api/send-sms:', err);
-    return NextResponse.json({ ok: false, error: err.message || 'Unknown error' }, { status: 500 });
+    console.error('[SMS] Unexpected error:', err.message);
+    // Return ok:true so the wizard doesn't show an error — SMS is non-critical
+    return NextResponse.json({ ok: true, skipped: true, error: err.message });
   }
 }

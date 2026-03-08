@@ -108,9 +108,27 @@ export function ValuationStep({ onNext, onBack, onRestart, data, lang }: Valuati
           <h2 className="text-2xl font-semibold mb-4 font-headline">{c.title}</h2>
 
           {loading && (
-            <div className="flex flex-col items-center space-y-2">
-              <Loader2 className="animate-spin text-primary w-8 h-8" />
-              <p className="text-muted-foreground">{c.calculatingTitle}</p>
+            <div className="flex flex-col items-center space-y-5 py-4">
+              <div className="relative">
+                {/* Logo GIF animé */}
+                <img src="/logo.gif" alt="AI analyzing" className="w-24 h-24 object-contain" />
+                {/* Glow ring */}
+                <div className="absolute inset-0 rounded-full bg-primary/10 animate-ping" style={{ animationDuration: '2s' }} />
+              </div>
+              <p className="text-lg font-semibold font-headline">{c.calculatingTitle}</p>
+              <p className="text-sm text-muted-foreground max-w-xs">{c.calculatingDescription}</p>
+              {/* Étapes animées */}
+              <div className="flex flex-col gap-2 text-sm text-muted-foreground w-full max-w-xs">
+                {(lang === 'fr'
+                  ? ['Analyse de l\'état du véhicule…', 'Calcul de la valeur métallique…', 'Évaluation des pièces…', 'Génération de l\'offre finale…']
+                  : ['Analyzing vehicle condition…', 'Calculating metal value…', 'Evaluating parts…', 'Generating final offer…']
+                ).map((step, i) => (
+                  <span key={i} className="flex items-center gap-2" style={{ animationDelay: `${i * 0.6}s` }}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" style={{ animationDelay: `${i * 0.3}s` }} />
+                    {step}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
 
