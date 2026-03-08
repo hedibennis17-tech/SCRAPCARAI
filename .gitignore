@@ -4,3 +4,7 @@ node_modules/
 .env.local 
 dist/ 
 build/ 
+-e 
+# Firebase debug logs
+firebase-debug.log
+.firebase/
