@@ -8,3 +8,4 @@ build/
 # Firebase debug logs
 firebase-debug.log
 .firebase/
+.vercel

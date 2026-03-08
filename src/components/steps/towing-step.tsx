@@ -15,8 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Separator } from '../ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { countries } from '@/lib/locations';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ScrollArea } from '../ui/scroll-area';
+import { GooglePlacesAutocomplete } from '@/components/ui/google-places-autocomplete';
 
 type TowingStepProps = {
   onNext: (data: { towing: TowingDetailsData }) => void;
@@ -122,6 +123,41 @@ export function TowingStep({ onNext, onBack, data, lang }: TowingStepProps) {
     form.setValue('alternateAddress.province', '');
   };
 
+  const handleAlternateAddressSelect = useCallback((components: {
+    streetNumber?: string;
+    route?: string;
+    city?: string;
+    province?: string;
+    country?: string;
+    postalCode?: string;
+    fullAddress?: string;
+  }) => {
+    if (components.city) {
+      form.setValue('alternateAddress.city', components.city, { shouldValidate: true });
+    }
+    if (components.postalCode) {
+      form.setValue('alternateAddress.postalCode', components.postalCode, { shouldValidate: true });
+    }
+    if (components.country) {
+      const countryCode = components.country as 'CA' | 'US';
+      form.setValue('alternateAddress.country', countryCode, { shouldValidate: true });
+      const countryData = countries.find(c => c.code === countryCode);
+      if (countryData) {
+        const newProvinces = countryData.provinces || countryData.states || [];
+        setProvinces(newProvinces);
+        if (components.province) {
+          const matchedProvince = newProvinces.find(
+            p => p.name.toLowerCase() === components.province!.toLowerCase() ||
+                 p.code.toLowerCase() === components.province!.toLowerCase()
+          );
+          if (matchedProvince) {
+            form.setValue('alternateAddress.province', matchedProvince.name, { shouldValidate: true });
+          }
+        }
+      }
+    }
+  }, [form]);
+
   return (
     <div className="h-full flex flex-col p-6 overflow-y-auto">
       {data.yard && data.yard.yard_name !== "Aucune fourrière trouvée" && (
@@ -162,7 +198,7 @@ export function TowingStep({ onNext, onBack, data, lang }: TowingStepProps) {
               {sameAddress === 'no' && (
                 <div className="space-y-4 rounded-lg border p-4">
                     <h4 className="font-medium">{c.alternateAddressTitle}</h4>
-                    <FormField control={form.control} name="alternateAddress.street" render={({ field }) => ( <FormItem><FormLabel>{c.streetLabel}</FormLabel><FormControl><Input placeholder={c.streetPlaceholder} {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="alternateAddress.street" render={({ field }) => ( <FormItem><FormLabel>{c.streetLabel}</FormLabel><FormControl><GooglePlacesAutocomplete value={field.value} onChange={field.onChange} onAddressSelect={handleAlternateAddressSelect} placeholder={c.streetPlaceholder} /></FormControl><FormMessage /></FormItem>)} />
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormField
                             control={form.control}

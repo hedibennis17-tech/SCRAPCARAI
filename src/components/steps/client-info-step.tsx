@@ -24,8 +24,9 @@ import {
   SelectValue,
 } from '../ui/select';
 import { countries } from '@/lib/locations';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ScrollArea } from '../ui/scroll-area';
+import { GooglePlacesAutocomplete } from '@/components/ui/google-places-autocomplete';
 
 type ClientInfoStepProps = {
   onNext: (data: ClientInfoData) => void;
@@ -43,7 +44,7 @@ const content = {
         phoneLabel: "Phone Number",
         phonePlaceholder: "e.g., (555) 123-4567",
         addressLabel: "Address",
-        addressPlaceholder: "e.g. 123 Main St",
+        addressPlaceholder: "Start typing your address...",
         cityLabel: "City",
         cityPlaceholder: "e.g. Montreal",
         postalCodeLabel: "Postal/ZIP Code",
@@ -63,7 +64,7 @@ const content = {
         phoneLabel: "Numéro de téléphone",
         phonePlaceholder: "ex: (514) 123-4567",
         addressLabel: "Adresse",
-        addressPlaceholder: "ex: 123 rue Principale",
+        addressPlaceholder: "Commencez à taper votre adresse...",
         cityLabel: "Ville",
         cityPlaceholder: "ex: Montréal",
         postalCodeLabel: "Code postal",
@@ -108,6 +109,44 @@ export function ClientInfoStep({ onNext, onBack, data, lang }: ClientInfoStepPro
     form.setValue('country', value as 'CA' | 'US');
     form.setValue('province', '');
   };
+
+  // Handle Google Places address selection — auto-fills city, province, country, postalCode
+  const handleAddressSelect = useCallback((components: {
+    streetNumber?: string;
+    route?: string;
+    city?: string;
+    province?: string;
+    country?: string;
+    postalCode?: string;
+    fullAddress?: string;
+  }) => {
+    if (components.city) {
+      form.setValue('city', components.city, { shouldValidate: true });
+    }
+    if (components.postalCode) {
+      form.setValue('postalCode', components.postalCode, { shouldValidate: true });
+    }
+    if (components.country) {
+      const countryCode = components.country as 'CA' | 'US';
+      form.setValue('country', countryCode, { shouldValidate: true });
+      // Update provinces list
+      const countryData = countries.find(c => c.code === countryCode);
+      if (countryData) {
+        const newProvinces = countryData.provinces || countryData.states || [];
+        setProvinces(newProvinces);
+        // Auto-fill province if found
+        if (components.province) {
+          const matchedProvince = newProvinces.find(
+            p => p.name.toLowerCase() === components.province!.toLowerCase() ||
+                 p.code.toLowerCase() === components.province!.toLowerCase()
+          );
+          if (matchedProvince) {
+            form.setValue('province', matchedProvince.name, { shouldValidate: true });
+          }
+        }
+      }
+    }
+  }, [form]);
 
   const onSubmit = (values: ClientInfoData) => {
     onNext(values);
@@ -157,87 +196,95 @@ export function ClientInfoStep({ onNext, onBack, data, lang }: ClientInfoStepPro
             )}
           />
           
+          {/* Address field with Google Places Autocomplete */}
+          <FormField
+            control={form.control}
+            name="address"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{c.addressLabel}</FormLabel>
+                <FormControl>
+                  <GooglePlacesAutocomplete
+                    value={field.value}
+                    onChange={field.onChange}
+                    onAddressSelect={handleAddressSelect}
+                    placeholder={c.addressPlaceholder}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
+              control={form.control}
+              name="country"
+              render={({ field }) => (
                 <FormItem>
-                    <FormLabel>{c.addressLabel}</FormLabel>
+                  <FormLabel>{c.countryLabel}</FormLabel>
+                  <Select onValueChange={handleCountryChange} value={field.value}>
                     <FormControl>
-                    <Input placeholder={c.addressPlaceholder} {...field} />
+                      <SelectTrigger><SelectValue placeholder={c.countryPlaceholder} /></SelectTrigger>
                     </FormControl>
-                    <FormMessage />
+                    <SelectContent>
+                      {countries.map(c => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
                 </FormItem>
-                )}
+              )}
             />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="country"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{c.countryLabel}</FormLabel>
-                    <Select onValueChange={handleCountryChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger><SelectValue placeholder={c.countryPlaceholder} /></SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {countries.map(c => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="province"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{c.provinceLabel}</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} disabled={!selectedCountryCode}>
-                      <FormControl>
-                        <SelectTrigger><SelectValue placeholder={c.provincePlaceholder} /></SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <ScrollArea className="h-72">
-                          {provinces.map(p => <SelectItem key={p.code} value={p.name}>{p.name}</SelectItem>)}
-                        </ScrollArea>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                  control={form.control}
-                  name="city"
-                  render={({ field }) => (
-                  <FormItem>
-                      <FormLabel>{c.cityLabel}</FormLabel>
-                      <FormControl>
-                      <Input placeholder={c.cityPlaceholder} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                  </FormItem>
-                  )}
-              />
-              <FormField
-                  control={form.control}
-                  name="postalCode"
-                  render={({ field }) => (
-                  <FormItem>
-                      <FormLabel>{c.postalCodeLabel}</FormLabel>
-                      <FormControl>
-                      <Input placeholder={c.postalCodePlaceholder} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                  </FormItem>
-                  )}
-              />
-            </div>
+            <FormField
+              control={form.control}
+              name="province"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{c.provinceLabel}</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={!selectedCountryCode}>
+                    <FormControl>
+                      <SelectTrigger><SelectValue placeholder={c.provincePlaceholder} /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <ScrollArea className="h-72">
+                        {provinces.map(p => <SelectItem key={p.code} value={p.name}>{p.name}</SelectItem>)}
+                      </ScrollArea>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="city"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{c.cityLabel}</FormLabel>
+                  <FormControl>
+                    <Input placeholder={c.cityPlaceholder} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="postalCode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{c.postalCodeLabel}</FormLabel>
+                  <FormControl>
+                    <Input placeholder={c.postalCodePlaceholder} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
           
           <div className="flex justify-between items-center pt-6 mt-auto">
             <Button type="button" variant="outline" onClick={onBack}>
