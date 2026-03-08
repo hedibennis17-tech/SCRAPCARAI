@@ -236,7 +236,6 @@ export function CarWizard() {
             </div>
           </div>
         )}
-        </div>
         <CardContent className="p-0 flex-grow">
           <div className="relative h-[500px] sm:h-[550px] overflow-hidden">
               <AnimatePresence initial={false} custom={direction}>
