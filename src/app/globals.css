@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -56,4 +58,85 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ===== SAAS PREMIUM BACKGROUND ===== */
+.saas-bg {
+  background: #0d0d0f;
+  min-height: 100vh;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.grid-overlay {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(169, 38, 54, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(169, 38, 54, 0.07) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.orb-red {
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(169, 38, 54, 0.35) 0%, transparent 70%);
+  top: -150px;
+  left: -100px;
+  animation: float-a 12s ease-in-out infinite;
+}
+
+.orb-dark {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(83, 37, 99, 0.25) 0%, transparent 70%);
+  bottom: -100px;
+  right: -80px;
+  animation: float-b 15s ease-in-out infinite;
+}
+
+.orb-accent {
+  width: 350px;
+  height: 350px;
+  background: radial-gradient(circle, rgba(169, 38, 54, 0.15) 0%, transparent 70%);
+  top: 60%;
+  left: 60%;
+  animation: float-c 10s ease-in-out infinite;
+}
+
+@keyframes float-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(40px, 30px) scale(1.05); }
+}
+@keyframes float-b {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-30px, -40px) scale(1.08); }
+}
+@keyframes float-c {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-20px, 20px) scale(0.95); }
+}
+
+/* ===== CARD PREMIUM GLASS ===== */
+.saas-bg [data-radix-ui-scroll-area-viewport],
+.saas-bg .shadow-2xl {
+  box-shadow:
+    0 0 0 1px rgba(169, 38, 54, 0.15),
+    0 25px 60px rgba(0, 0, 0, 0.6),
+    0 0 80px rgba(169, 38, 54, 0.08) !important;
+}
+
+/* Headline font */
+.font-headline {
+  font-family: 'Syne', sans-serif !important;
 }

@@ -225,7 +225,7 @@ export function CarWizard() {
   const currentStepInfo = steps[step];
 
   return (
-     <Card className="w-full mx-auto shadow-2xl overflow-hidden grid md:grid-cols-[1fr_200px]">
+     <Card className="w-full mx-auto overflow-hidden grid md:grid-cols-[1fr_200px]" style={{maxWidth:'960px', boxShadow:'0 0 0 1px rgba(169,38,54,0.15), 0 25px 60px rgba(0,0,0,0.6)'}}>
       <div className="flex flex-col">
         <div className="p-4 border-b flex items-center gap-4 h-[70px]">
            <Logo size="small" />
