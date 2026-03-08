@@ -1,35 +1,24 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Loader2, Car, ArrowUpDown } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import React, { useMemo, useState } from 'react';
+import { Loader2, Search } from 'lucide-react';
 import { useFirebase } from '@/firebase';
 import { useCollection } from 'react-firebase-hooks/firestore';
-import { collection, query, orderBy } from 'firebase/firestore';
-import { updateDoc, doc } from 'firebase/firestore';
+import { collection, query, orderBy, updateDoc, doc } from 'firebase/firestore';
 
-const STATUS_OPTIONS = ['pending_pickup','picked_up','at_yard','processed','sold'];
-const STATUS_LABELS: Record<string, string> = {
-  pending_pickup: 'En attente',
-  picked_up: 'Ramassé',
-  at_yard: 'Au yard',
-  processed: 'Traité',
-  sold: 'Vendu',
-};
-const STATUS_COLORS: Record<string, string> = {
-  pending_pickup: 'bg-amber-500 text-white',
-  picked_up: 'bg-blue-500 text-white',
-  at_yard: 'bg-purple-600 text-white',
-  processed: 'bg-green-600 text-white',
-  sold: 'bg-gray-600 text-white',
-};
+const STATUS_OPTIONS = [
+  { value: 'pending_pickup', label: 'En attente' },
+  { value: 'picked_up',      label: 'Ramassé'    },
+  { value: 'at_yard',        label: 'Au yard'    },
+  { value: 'processed',      label: 'Traité'     },
+  { value: 'sold',           label: 'Vendu'      },
+];
 
-function AdminVehiclesPage() {
+const PARTS = ['Catalyst', 'Engine', 'Transmission', 'Battery', 'Wheels'];
+
+export default function AdminVehiclesPage() {
   const { firestore } = useFirebase();
-  const [sortAsc, setSortAsc] = useState(false);
+  const [search, setSearch] = useState('');
 
   const q = firestore ? query(collection(firestore, 'vehicles'), orderBy('createdAt', 'desc')) : null;
   const [snap, loading, error] = useCollection(q);
@@ -39,95 +28,88 @@ function AdminVehiclesPage() {
     return snap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
   }, [snap]);
 
+  const filtered = useMemo(() => {
+    if (!search) return vehicles;
+    const s = search.toLowerCase();
+    return vehicles.filter(v =>
+      v.make?.toLowerCase().includes(s) ||
+      v.model?.toLowerCase().includes(s) ||
+      v.clientName?.toLowerCase().includes(s)
+    );
+  }, [vehicles, search]);
+
   const updateStatus = async (id: string, status: string) => {
     if (!firestore) return;
     await updateDoc(doc(firestore, 'vehicles', id), { status, updatedAt: new Date() });
   };
 
   return (
-    <div>
-      <div className="mb-6 flex items-center gap-3">
-        <Car className="h-8 w-8 text-primary" />
+    <div className="admin-card">
+      <div className="admin-card-header">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Véhicules</h2>
-          <p className="text-muted-foreground">Inventaire complet avec état et progression.</p>
+          <h2 className="admin-card-title">Inventaire Véhicules</h2>
+          <p className="admin-card-desc">Suivi des véhicules en cours de traitement</p>
+        </div>
+        <div className="admin-search-wrap">
+          <Search className="admin-search-icon" />
+          <input type="search" placeholder="Rechercher…" className="admin-search-input"
+            value={search} onChange={e => setSearch(e.target.value)} />
         </div>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          {loading && <div className="flex justify-center p-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
-          {error && <p className="text-destructive p-6">{error.message}</p>}
-          {!loading && !error && (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Véhicule</TableHead>
-                  <TableHead>NIV / VIN</TableHead>
-                  <TableHead>Kilométrage</TableHead>
-                  <TableHead>Pièces présentes</TableHead>
-                  <TableHead>Condition</TableHead>
-                  <TableHead>Photos</TableHead>
-                  <TableHead>Offre</TableHead>
-                  <TableHead>Statut</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {vehicles.length === 0 && (
-                  <TableRow><TableCell colSpan={8} className="text-center h-24 text-muted-foreground">Aucun véhicule enregistré.</TableCell></TableRow>
-                )}
-                {vehicles.map((v) => (
-                  <TableRow key={v.id}>
-                    <TableCell>
-                      <div className="font-medium">{v.year} {v.make} {v.model}</div>
-                      <div className="text-xs text-muted-foreground">{v.vehicleType}</div>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{v.vin ?? 'N/A'}</TableCell>
-                    <TableCell className="text-sm">{v.mileage ? `${v.mileage} km` : 'N/A'}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {['Catalyst','Engine','Transmission','Battery','Wheels'].map(part => (
-                          <Badge key={part} variant={v.missingParts?.includes(part) ? 'destructive' : 'secondary'} className="text-xs px-1">
-                            {part}
-                          </Badge>
+      {loading && <div className="admin-table-loading"><Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--t-primary)' }} /><span>Chargement…</span></div>}
+      {error && <p className="admin-error">{error.message}</p>}
+
+      {!loading && !error && (
+        <div className="admin-table-wrap">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Véhicule</th>
+                <th className="hidden sm:table-cell">Client</th>
+                <th className="hidden md:table-cell">Pièces</th>
+                <th>Offre</th>
+                <th>Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length > 0 ? filtered.map((v: any) => {
+                const missing: string[] = v.missingParts ?? [];
+                return (
+                  <tr key={v.id} className="admin-table-row">
+                    <td>
+                      <div className="admin-table-name">{v.year} {v.make} {v.model}</div>
+                      <div className="admin-table-sub">{v.vin || '—'}</div>
+                      <div className="admin-table-sub">{v.mileage ? `${Number(v.mileage).toLocaleString('fr-CA')} km` : ''}</div>
+                    </td>
+                    <td className="hidden sm:table-cell">
+                      <div className="admin-table-name" style={{ fontSize: '0.8rem' }}>{v.clientName || '—'}</div>
+                    </td>
+                    <td className="hidden md:table-cell">
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                        {PARTS.map(p => (
+                          <span key={p} className={`admin-badge ${missing.includes(p) ? 'danger' : 'success'}`} style={{ fontSize: '0.62rem', padding: '2px 6px' }}>
+                            {p}
+                          </span>
                         ))}
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-xs space-y-0.5">
-                        <div>{v.runs ? '✅ Démarre' : '❌ Ne démarre pas'}</div>
-                        {v.accident && <div>⚠️ Accidenté</div>}
-                        {v.hasRust && <div>🔴 Rouille</div>}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {v.photos?.length > 0
-                        ? <span className="text-xs text-primary">{v.photos.length} photo(s)</span>
-                        : <span className="text-xs text-muted-foreground">—</span>}
-                    </TableCell>
-                    <TableCell className="font-medium text-green-600">
-                      {v.finalPrice ? `$${Number(v.finalPrice).toFixed(2)}` : 'N/A'}
-                    </TableCell>
-                    <TableCell>
-                      <select
-                        className="text-xs rounded border bg-background px-2 py-1 cursor-pointer"
-                        value={v.status ?? 'pending_pickup'}
-                        onChange={e => updateStatus(v.id, e.target.value)}
-                      >
-                        {STATUS_OPTIONS.map(s => (
-                          <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-                        ))}
+                    </td>
+                    <td className="admin-table-price">{v.offeredPrice ? `$${Number(v.offeredPrice).toFixed(0)}` : '—'}</td>
+                    <td>
+                      <select className="admin-status-select" value={v.status || 'pending_pickup'}
+                        onChange={e => updateStatus(v.id, e.target.value)}>
+                        {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                       </select>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                    </td>
+                  </tr>
+                );
+              }) : (
+                <tr><td colSpan={5} className="admin-table-empty">Aucun véhicule trouvé.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
-
-export default AdminVehiclesPage;
