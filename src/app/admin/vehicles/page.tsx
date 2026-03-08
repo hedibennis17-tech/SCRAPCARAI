@@ -1,167 +1,126 @@
-
 'use client';
 
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import type { Assessment, ConditionWizardData } from '@/types';
-import { Loader2, ArrowUpDown, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Loader2, Car, ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useFirebase } from '@/firebase';
 import { useCollection } from 'react-firebase-hooks/firestore';
-import { collection, query } from 'firebase/firestore';
+import { collection, query, orderBy } from 'firebase/firestore';
+import { updateDoc, doc } from 'firebase/firestore';
 
-// Helper function to create a concise summary of the vehicle's condition
-const getConditionSummary = (condition?: ConditionWizardData) => {
-    if (!condition) return 'N/A';
-    const parts = [
-        !condition.missingParts?.includes('Catalyst') && 'Cata',
-        !condition.missingParts?.includes('Engine') && 'Moteur',
-        !condition.missingParts?.includes('Transmission') && 'Trans',
-        !condition.missingParts?.includes('Battery') && 'Batt',
-        !condition.missingParts?.includes('Wheels') && 'Roues',
-        condition.runs && 'Démarre'
-    ].filter(Boolean);
-    return parts.join(', ');
-}
+const STATUS_OPTIONS = ['pending_pickup','picked_up','at_yard','processed','sold'];
+const STATUS_LABELS: Record<string, string> = {
+  pending_pickup: 'En attente',
+  picked_up: 'Ramassé',
+  at_yard: 'Au yard',
+  processed: 'Traité',
+  sold: 'Vendu',
+};
+const STATUS_COLORS: Record<string, string> = {
+  pending_pickup: 'bg-amber-500 text-white',
+  picked_up: 'bg-blue-500 text-white',
+  at_yard: 'bg-purple-600 text-white',
+  processed: 'bg-green-600 text-white',
+  sold: 'bg-gray-600 text-white',
+};
 
 function AdminVehiclesPage() {
-  const [sortOrder, setSortOrder] = useState<'date' | 'name'>('date');
   const { firestore } = useFirebase();
-  const assessmentsQuery = firestore ? query(collection(firestore, 'assessments')) : null;
-  const [assessmentsSnapshot, isFirebaseLoading, error] = useCollection(assessmentsQuery);
+  const [sortAsc, setSortAsc] = useState(false);
 
-  const assessments = useMemo(() => {
-    if (!assessmentsSnapshot) return [];
-    return assessmentsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as Assessment[];
-  }, [assessmentsSnapshot]);
+  const q = firestore ? query(collection(firestore, 'vehicles'), orderBy('createdAt', 'desc')) : null;
+  const [snap, loading, error] = useCollection(q);
 
+  const vehicles = useMemo(() => {
+    if (!snap) return [];
+    return snap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
+  }, [snap]);
 
-  const sortedAssessments = useMemo(() => {
-    if(!assessments) return [];
-    const sorted = [...assessments];
-    if (sortOrder === 'date') {
-      return sorted.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
-    }
-    return sorted.sort((a, b) => a.client?.name?.localeCompare(b.client?.name ?? '') ?? 0);
-  }, [assessments, sortOrder]);
+  const updateStatus = async (id: string, status: string) => {
+    if (!firestore) return;
+    await updateDoc(doc(firestore, 'vehicles', id), { status, updatedAt: new Date() });
+  };
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex items-center gap-3">
+        <Car className="h-8 w-8 text-primary" />
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Rapport des véhicules</h2>
-          <p className="text-muted-foreground">
-            Liste de tous les véhicules récemment évalués ou achetés.
-          </p>
-        </div>
-         <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setSortOrder('date')} disabled={sortOrder==='date'}>
-                <ArrowUpDown className="mr-2 h-4 w-4" />
-                Trier par Date
-            </Button>
-            <Button variant="outline" onClick={() => setSortOrder('name')} disabled={sortOrder==='name'}>
-                <ArrowUpDown className="mr-2 h-4 w-4" />
-                Trier par Nom
-            </Button>
+          <h2 className="text-3xl font-bold tracking-tight">Véhicules</h2>
+          <p className="text-muted-foreground">Inventaire complet avec état et progression.</p>
         </div>
       </div>
+
       <Card>
-        <CardContent className="pt-6">
-          {isFirebaseLoading && (
-            <div className="flex items-center justify-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <p className="ml-4">Chargement des véhicules...</p>
-            </div>
-          )}
-
-          {error && (
-             <Alert variant="destructive">
-                <AlertTitle>Erreur de base de données</AlertTitle>
-                <AlertDescription>
-                    <p>Impossible de charger les données. L'erreur suivante s'est produite :</p>
-                    <pre className="mt-2 text-xs bg-black/20 p-2 rounded-md overflow-x-auto">
-                        {error.message}
-                    </pre>
-                </AlertDescription>
-            </Alert>
-          )}
-
-          {!isFirebaseLoading && !error && (
+        <CardContent className="p-0">
+          {loading && <div className="flex justify-center p-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
+          {error && <p className="text-destructive p-6">{error.message}</p>}
+          {!loading && !error && (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Client</TableHead>
                   <TableHead>Véhicule</TableHead>
-                  <TableHead>Détails</TableHead>
-                  <TableHead>Ville</TableHead>
+                  <TableHead>NIV / VIN</TableHead>
+                  <TableHead>Kilométrage</TableHead>
+                  <TableHead>Pièces présentes</TableHead>
                   <TableHead>Condition</TableHead>
-                  <TableHead>Prix</TableHead>
+                  <TableHead>Photos</TableHead>
+                  <TableHead>Offre</TableHead>
                   <TableHead>Statut</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedAssessments && sortedAssessments.length > 0 ? (
-                  sortedAssessments.map((assessment) => (
-                    <TableRow key={assessment.id}>
-                      <TableCell>
-                        <div className="font-medium">{assessment.client?.name}</div>
-                        <div className="text-sm text-muted-foreground">{assessment.client?.phone}</div>
-                      </TableCell>
-                       <TableCell>
-                         <div className="font-medium">{assessment.vehicle?.make} {assessment.vehicle?.model}</div>
-                         <div className="text-sm text-muted-foreground">{assessment.vehicle?.year}</div>
-                       </TableCell>
-                        <TableCell>
-                         <div className="font-medium">{assessment.vehicle?.transmission}</div>
-                         <div className="text-sm text-muted-foreground">{assessment.vehicle?.mileage ? `${Number(assessment.vehicle.mileage).toLocaleString()} km` : 'N/A'}</div>
-                       </TableCell>
-                       <TableCell>
-                          {assessment.client?.city}
-                       </TableCell>
-                       <TableCell className="text-xs">{getConditionSummary(assessment.condition)}</TableCell>
-                       <TableCell className="font-medium">
-                        {assessment.valuation ? `$${assessment.valuation.finalPrice.toFixed(2)}` : 'N/A'}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={assessment.summary?.purchaseOrder ? 'default' : 'secondary'} className={!assessment.summary?.purchaseOrder ? 'bg-orange-400 text-white' : 'bg-green-600'}>
-                          {assessment.summary?.purchaseOrder ? 'Terminé' : 'En attente'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                         <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                              <Button aria-haspopup="true" size="icon" variant="ghost">
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Toggle menu</span>
-                              </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuItem>
-                                  <Edit className="mr-2 h-4 w-4" />
-                                  Mettre à jour le statut
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive">
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Supprimer
-                              </DropdownMenuItem>
-                          </DropdownMenuContent>
-                          </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center h-24">
-                      Aucun véhicule trouvé.
+                {vehicles.length === 0 && (
+                  <TableRow><TableCell colSpan={8} className="text-center h-24 text-muted-foreground">Aucun véhicule enregistré.</TableCell></TableRow>
+                )}
+                {vehicles.map((v) => (
+                  <TableRow key={v.id}>
+                    <TableCell>
+                      <div className="font-medium">{v.year} {v.make} {v.model}</div>
+                      <div className="text-xs text-muted-foreground">{v.vehicleType}</div>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">{v.vin ?? 'N/A'}</TableCell>
+                    <TableCell className="text-sm">{v.mileage ? `${v.mileage} km` : 'N/A'}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {['Catalyst','Engine','Transmission','Battery','Wheels'].map(part => (
+                          <Badge key={part} variant={v.missingParts?.includes(part) ? 'destructive' : 'secondary'} className="text-xs px-1">
+                            {part}
+                          </Badge>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-xs space-y-0.5">
+                        <div>{v.runs ? '✅ Démarre' : '❌ Ne démarre pas'}</div>
+                        {v.accident && <div>⚠️ Accidenté</div>}
+                        {v.hasRust && <div>🔴 Rouille</div>}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {v.photos?.length > 0
+                        ? <span className="text-xs text-primary">{v.photos.length} photo(s)</span>
+                        : <span className="text-xs text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell className="font-medium text-green-600">
+                      {v.finalPrice ? `$${Number(v.finalPrice).toFixed(2)}` : 'N/A'}
+                    </TableCell>
+                    <TableCell>
+                      <select
+                        className="text-xs rounded border bg-background px-2 py-1 cursor-pointer"
+                        value={v.status ?? 'pending_pickup'}
+                        onChange={e => updateStatus(v.id, e.target.value)}
+                      >
+                        {STATUS_OPTIONS.map(s => (
+                          <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+                        ))}
+                      </select>
                     </TableCell>
                   </TableRow>
-                )}
+                ))}
               </TableBody>
             </Table>
           )}

@@ -2,134 +2,91 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * @description: Denies all read and write access to any document by default.
-     * @path: /{document=**}
-     * @allow: (none)
-     * @deny: (any) Any read or write attempt.
-     * @principle: Default deny.
-     */
+    // Default deny
     match /{document=**} {
-      allow read, write: if false; // Par défaut, tout est bloqué
+      allow read, write: if false;
     }
 
-    /**
-     * @description: Controls access to client submission documents.
-     * @path: /client_submissions/{docId}
-     * @allow: (create) Authenticated user creates a new submission.
-     * @allow: (read, update, delete) Authenticated user reads, updates, or deletes their own submission.
-     * @allow: (read, write) Admin user reads or writes any submission.
-     * @deny: (create) Unauthenticated user tries to create a submission.
-     * @deny: (read, update, delete) Authenticated user tries to access another user's submission.
-     * @deny: (read, write) Non-admin user tries to access the admin space.
-     * @principle: Authenticated users can create, admins have full access, and users can manage their own submissions.
-     */
-    match /client_submissions/{docId} {
+    // ─── assessments (existing) ───────────────────────────────────────────────
+    match /assessments/{assessmentId} {
+      allow get, list: if true;
       allow create: if isSignedIn();
-
-      allow get: if isSignedIn() && request.auth.uid == resource.data.userId;
-      allow list: if false;
-      
-      allow update, delete: if isSignedIn() && request.auth.uid == resource.data.userId;
-
-      allow read, write: if isAdmin(request.auth);
+      allow update: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || isAdmin(request.auth)
+      );
+      allow delete: if isAdmin(request.auth);
     }
 
-    /**
-     * @description: Grants full access to the /admin path for admin users only.
-     * @path: /admin/{document=**}
-     * @allow: (read, write) Admin user reads or writes any document in the /admin path.
-     * @deny: (read, write) Non-admin user tries to access the admin space.
-     * @principle: Restricts access to the admin area to authorized administrators.
-     */
+    // ─── transactions ─────────────────────────────────────────────────────────
+    match /transactions/{txId} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        resource.data.clientEmail == request.auth.token.email || isAdmin(request.auth)
+      );
+      allow delete: if isAdmin(request.auth);
+    }
+
+    // ─── clients ──────────────────────────────────────────────────────────────
+    match /clients/{clientId} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isAdmin(request.auth);
+
+      match /assessments/{assessmentId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    // ─── vehicles ─────────────────────────────────────────────────────────────
+    match /vehicles/{vehicleId} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        resource.data.clientEmail == request.auth.token.email || isAdmin(request.auth)
+      );
+      allow delete: if isAdmin(request.auth);
+    }
+
+    // ─── towing_dispatches ────────────────────────────────────────────────────
+    match /towing_dispatches/{dispatchId} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isAdmin(request.auth);
+    }
+
+    // ─── reports_data ─────────────────────────────────────────────────────────
+    match /reports_data/{reportId} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isAdmin(request.auth);
+    }
+
+    // ─── admin space ──────────────────────────────────────────────────────────
     match /admin/{document=**} {
       allow read, write: if isAdmin(request.auth);
     }
 
-    /**
-     * @description: Controls access to client documents.
-     * @path: /clients/{clientId}
-     * @allow: (create) Authenticated user creates their own client document (self-registration).
-     * @allow: (get, update, delete) Authenticated user reads, updates, or deletes their own client document.
-     * @deny: (create) Authenticated user tries to create a client document with a mismatched ID.
-     * @deny: (get, update, delete) Authenticated user tries to access another user's client document.
-     * @principle: Enforces strict user-ownership for client data.
-     */
-    match /clients/{clientId} {
-        allow create: if isSignedIn() && request.auth.uid == clientId && request.resource.data.id == clientId;
-        allow get, update, delete: if isSignedIn() && request.auth.uid == clientId;
-        allow list: if false;
+    // ─── client_submissions (legacy) ──────────────────────────────────────────
+    match /client_submissions/{docId} {
+      allow create: if isSignedIn();
+      allow get, update, delete: if isSignedIn() && request.auth.uid == resource.data.userId;
+      allow read, write: if isAdmin(request.auth);
     }
 
-    /**
-     * @description: Controls access to assessments belonging to a specific client.
-     * @path: /clients/{clientId}/assessments/{assessmentId}
-     * @allow: (create) Authenticated user creates an assessment under their own client document.
-     * @allow: (get, update, delete) Authenticated user reads, updates, or deletes an assessment under their own client document.
-     * @deny: (create) Authenticated user tries to create an assessment under another user's client document.
-     * @deny: (get, update, delete) Authenticated user tries to access an assessment under another user's client document.
-     * @principle: Enforces strict user-ownership for client-specific assessments.
-     */
-    match /clients/{clientId}/assessments/{assessmentId} {
-        allow create: if isSignedIn() && request.auth.uid == clientId;
-        allow get, update, delete: if isSignedIn() && request.auth.uid == clientId;
-        allow list: if isSignedIn() && request.auth.uid == clientId;
-    }
-     /**
-      * @description: Controls access to vehicle assessments. Read access is public, but write access is restricted to the owner.
-      * @path: /assessments/{assessmentId}
-      * @allow: (get, list) Any user can read or list assessments.
-      * @allow: (create) Authenticated user creates an assessment with their user ID as the authorId.
-      * @allow: (update, delete) Authenticated user updates or deletes their own assessment.
-      * @deny: (create) Authenticated user tries to create an assessment with a mismatched authorId.
-      * @deny: (update, delete) Authenticated user tries to modify or delete another user's assessment.
-      * @principle: Allows public read access while maintaining owner control over write operations.
-      */
-     match /assessments/{assessmentId} {
-        allow get, list: if true;
-        allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
-        allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid; // Author ID validation
-    }
   }
 
-  /**
-   * @description: Checks if the user is an administrator based on a custom claim or a list of UIDs.
-   * @param {object} auth - The authentication object.
-   * @returns {boolean} - True if the user is an administrator, false otherwise.
-   */
   function isAdmin(auth) {
     return auth != null && (
-      auth.token.admin == true || 
-      auth.uid in [
-        "UID_ADMIN_1",
-        "UID_ADMIN_2"
-      ]
+      auth.token.admin == true ||
+      auth.uid in ["UID_ADMIN_1", "UID_ADMIN_2"]
     );
   }
 
-  /**
-   * @description: Checks if the user is signed in.
-   * @returns {boolean} - True if the user is signed in, false otherwise.
-   */
   function isSignedIn() {
     return request.auth != null;
-  }
-
-  /**
-   * @description: Checks if the user is the owner of the resource.
-   * @param {string} userId - The user ID to check against.
-   * @returns {boolean} - True if the user is the owner, false otherwise.
-   */
-  function isOwner(userId) {
-    return request.auth.uid == userId;
-  }
-
-    /**
-   * @description: Checks if the user is the owner of the existing resource.
-   * @param {string} userId - The user ID to check against.
-   * @returns {boolean} - True if the user is the owner, false otherwise.
-   */
-  function isExistingOwner(userId) {
-    return isOwner(userId) && resource != null;
   }
 }
