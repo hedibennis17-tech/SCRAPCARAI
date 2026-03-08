@@ -1,11 +1,13 @@
 // Firebase configuration
-// Uses environment variables in production, falls back to hardcoded values for development
+// All values come from environment variables (set in Vercel dashboard or .env.local)
+// IMPORTANT: Do NOT add hardcoded fallback values — they get compiled into the bundle
+// and override the env vars injected by Vercel at build time.
 export const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyBGz8j572klRVWrvgKrfr9Gkpb5v2coGBc",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "studio-2680655679-36c60.firebaseapp.com",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "studio-2680655679-36c60",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "studio-2680655679-36c60.appspot.com",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "698672764159",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:698672764159:web:c796c6f87bfc3e6b8ea8ca",
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "G-S0X2TTCY1Y",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
