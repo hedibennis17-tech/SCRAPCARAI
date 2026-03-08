@@ -65,6 +65,9 @@ service cloud.firestore {
   }
 
   function isAdmin() {
-    return request.auth != null && request.auth.token.admin == true;
+    return request.auth != null && (
+      request.auth.token.admin == true ||
+      request.auth.token.email == 'hedibennis17@gmail.com'
+    );
   }
 }

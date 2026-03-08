@@ -1,181 +1,73 @@
-/**
- * @fileoverview Firestore Security Rules for CarWizardAI application.
- *
- * Core Philosophy:
- * This ruleset enforces a strict user-ownership model for user profiles
- * and a client-ownership model for data related to clients, vehicles,
- * assessments, AI agent interactions, and appointments. Quotes are publicly readable but
- * only writable by the quote creator.
- *
- * Data Structure:
- * - /users/{userId}: Stores user profiles, where {userId} is the Firebase Auth UID.
- * - /clients/{clientId}/vehicles/{vehicleId}: Stores vehicle data under a client's ID.
- * - /clients/{clientId}/vehicles/{vehicleId}/assessments/{assessmentId}: Stores assessment data for a specific vehicle.
- * - /clients/{clientId}/ai_agent_interactions/{aiAgentInteractionId}: Stores AI agent interaction logs for a client.
- * - /clients/{clientId}/appointments/{appointmentId}: Stores appointment information for a client.
- * - /quotes/{quoteId}: Stores quote assessment data.
- *
- * Key Security Decisions:
- * - Users can only read/write their own profile data.
- * - Clients (represented by their UID) own all data under their respective /clients/{clientId} path.
- * - Quotes are publicly readable.
- * - Clients can only write Quotes where the `userId` matches their own `auth.uid`.
- * - Listing collections is generally allowed for owners of those collections (e.g., a user can list their own documents).
- *
- * Denormalization for Authorization:
- *  - Vehicle, Assessment, AiAgentInteraction, and Appointment documents are nested under `/clients/{clientId}`. This allows for authorization checks based on the `clientId` path parameter without needing to read the document content.
- *  - Quote documents contain a `userId` field, which is used to ensure that only the user who created the quote can modify or delete it.
- *
- * Structural Segregation:
- * - Private user data is stored under the `/users/{userId}` collection, while public quote data is stored in the top-level `/quotes` collection.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * @description Secure user profiles. Users can only read and write their own profile.
-     * @path /users/{userId}
-     * @allow (create) User with UID 'user_abc' can create their own profile at /users/user_abc.
-     * @allow (get, update, delete) User with UID 'user_abc' can read, update, and delete their profile at /users/user_abc.
-     * @deny (create, get, update, delete) User with UID 'user_xyz' cannot access profile data at /users/user_abc.
-     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
-     */
-    match /users/{userId} {
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
-
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.uid == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.uid == resource.data.uid;
-      allow delete: if isExistingOwner(userId);
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
     }
 
-    /**
-     * @description Secure vehicle data for a specific client.
-     * @path /clients/{clientId}/vehicles/{vehicleId}
-     * @allow (create) User with UID 'client_abc' can create a vehicle for their client ID at /clients/client_abc/vehicles/vehicle_123.
-     * @allow (get, list, update, delete) User with UID 'client_abc' can read, list, update, and delete vehicles under their client ID.
-     * @deny (create, get, update, delete) User with UID 'client_xyz' cannot access vehicle data under client ID 'client_abc'.
-     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
-     */
-    match /clients/{clientId}/vehicles/{vehicleId} {
-       function isOwner(clientId) {
-        return request.auth != null && request.auth.uid == clientId;
-      }
-
-      function isExistingOwner(clientId) {
-        return isOwner(clientId) && resource != null;
-      }
-
-      allow get: if isOwner(clientId);
-      allow list: if isOwner(clientId);
-      allow create: if isOwner(clientId) && request.resource.data.clientId == clientId;
-      allow update: if isExistingOwner(clientId) && request.resource.data.clientId == resource.data.clientId;
-      allow delete: if isExistingOwner(clientId);
+    // assessments — anyone signed in (incl. anonymous) can create
+    match /assessments/{id} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null;
     }
 
-    /**
-     * @description Secure assessment data for a specific vehicle and client.
-     * @path /clients/{clientId}/vehicles/{vehicleId}/assessments/{assessmentId}
-     * @allow (create) User with UID 'client_abc' can create an assessment for their vehicle at /clients/client_abc/vehicles/vehicle_123/assessments/assessment_456.
-     * @allow (get, list, update, delete) User with UID 'client_abc' can read, list, update, and delete assessments under their client ID and vehicle ID.
-     * @deny (create, get, update, delete) User with UID 'client_xyz' cannot access assessment data under client ID 'client_abc'.
-     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
-     */
-    match /clients/{clientId}/vehicles/{vehicleId}/assessments/{assessmentId} {
-      function isOwner(clientId) {
-        return request.auth != null && request.auth.uid == clientId;
-      }
-
-      function isExistingOwner(clientId) {
-        return isOwner(clientId) && resource != null;
-      }
-
-      allow get: if isOwner(clientId);
-      allow list: if isOwner(clientId);
-      allow create: if isOwner(clientId) && request.resource.data.vehicleId == vehicleId;
-      allow update: if isExistingOwner(clientId) && request.resource.data.vehicleId == resource.data.vehicleId;
-      allow delete: if isExistingOwner(clientId);
+    // transactions
+    match /transactions/{id} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null;
     }
 
-    /**
-     * @description Secure AI agent interaction logs for a specific client.
-     * @path /clients/{clientId}/ai_agent_interactions/{aiAgentInteractionId}
-     * @allow (create) User with UID 'client_abc' can create an AI interaction log at /clients/client_abc/ai_agent_interactions/interaction_789.
-     * @allow (get, list, update, delete) User with UID 'client_abc' can read, list, update, and delete AI interaction logs under their client ID.
-     * @deny (create, get, update, delete) User with UID 'client_xyz' cannot access AI interaction logs under client ID 'client_abc'.
-     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
-     */
-    match /clients/{clientId}/ai_agent_interactions/{aiAgentInteractionId} {
-       function isOwner(clientId) {
-        return request.auth != null && request.auth.uid == clientId;
-      }
+    // clients
+    match /clients/{id} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null;
 
-      function isExistingOwner(clientId) {
-        return isOwner(clientId) && resource != null;
+      match /assessments/{aid} {
+        allow read, write: if request.auth != null;
       }
-
-      allow get: if isOwner(clientId);
-      allow list: if isOwner(clientId);
-      allow create: if isOwner(clientId) && request.resource.data.clientId == clientId;
-      allow update: if isExistingOwner(clientId) && request.resource.data.clientId == resource.data.clientId;
-      allow delete: if isExistingOwner(clientId);
     }
 
-    /**
-     * @description Secure appointment data for a specific client.
-     * @path /clients/{clientId}/appointments/{appointmentId}
-     * @allow (create) User with UID 'client_abc' can create an appointment at /clients/client_abc/appointments/appointment_101.
-     * @allow (get, list, update, delete) User with UID 'client_abc' can read, list, update, and delete appointments under their client ID.
-     * @deny (create, get, update, delete) User with UID 'client_xyz' cannot access appointment data under client ID 'client_abc'.
-     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
-     */
-    match /clients/{clientId}/appointments/{appointmentId} {
-      function isOwner(clientId) {
-        return request.auth != null && request.auth.uid == clientId;
-      }
-
-      function isExistingOwner(clientId) {
-        return isOwner(clientId) && resource != null;
-      }
-
-      allow get: if isOwner(clientId);
-      allow list: if isOwner(clientId);
-      allow create: if isOwner(clientId) && request.resource.data.clientId == clientId;
-      allow update: if isExistingOwner(clientId) && request.resource.data.clientId == resource.data.clientId;
-      allow delete: if isExistingOwner(clientId);
+    // vehicles
+    match /vehicles/{id} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null;
     }
 
-    /**
-     * @description Secure quote data. Quotes are publicly readable but only the creator can modify or delete.
-     * @path /quotes/{quoteId}
-     * @allow (get, list) Any user can read and list quotes.
-     * @allow (create) User with UID 'user_abc' can create a quote with userId: 'user_abc'.
-     * @allow (update, delete) User with UID 'user_abc' can update and delete a quote they created (where resource.data.userId == 'user_abc').
-     * @deny (create, update, delete) User with UID 'user_xyz' cannot create, update, or delete a quote for user 'user_abc'.
-     * @principle Allows public read access but enforces ownership for writes.
-     */
-    match /quotes/{quoteId} {
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
-
-       function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-
-      allow get: if true;
-      allow list: if true;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow update: if isExistingOwner(resource.data.userId);
-      allow delete: if isExistingOwner(resource.data.userId);
+    // towing_dispatches
+    match /towing_dispatches/{id} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null;
     }
+
+    // reports_data
+    match /reports_data/{id} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null;
+    }
+
+    // admin space
+    match /admin/{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    // client_submissions (legacy)
+    match /client_submissions/{id} {
+      allow read, write: if request.auth != null;
+    }
+  }
+
+  function isAdmin() {
+    return request.auth != null && (
+      request.auth.token.admin == true ||
+      request.auth.token.email == 'hedibennis17@gmail.com'
+    );
   }
 }

@@ -43,7 +43,9 @@ export default function AdminLoginPage() {
     try {
       // Force local persistence so session survives browser close
       await setPersistence(auth, browserLocalPersistence);
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCred = await signInWithEmailAndPassword(auth, email, password);
+      // Force token refresh to pick up custom claims (admin=true)
+      await userCred.user.getIdToken(true);
       router.push('/admin');
     } catch (err: any) {
       console.error('Login failed:', err);
