@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils';
 
 export function Logo({ className, size = 'default' }: { className?: string; size?: 'default' | 'small' | 'large' | 'xl' }) {
   const sizes = {
-    small:   { w: 72,  h: 72  },
+    small:   { w: 52,  h: 52  },
     default: { w: 180, h: 180 },
     large:   { w: 240, h: 240 },
     xl:      { w: 280, h: 280 },

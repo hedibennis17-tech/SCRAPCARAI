@@ -662,10 +662,19 @@
    ============================================================ */
 .theme-switcher-wrap {
   position: fixed;
-  top: 20px;
-  right: 20px;
+  top: 12px;
+  right: 12px;
   z-index: 9999;
   font-family: 'Inter', sans-serif;
+}
+
+/* Mobile: smaller pill, top-left so it never overlaps the card header */
+@media (max-width: 640px) {
+  .theme-switcher-wrap {
+    top: 10px;
+    left: 10px;
+    right: auto;
+  }
 }
 
 .theme-trigger {
@@ -685,6 +694,27 @@
   transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
   box-shadow: 0 4px 16px rgba(0,0,0,0.4);
   white-space: nowrap;
+}
+
+/* Mobile: icône seule sans label */
+@media (max-width: 640px) {
+  .theme-trigger {
+    padding: 8px;
+    gap: 0;
+  }
+  .theme-trigger-label,
+  .theme-chevron {
+    display: none;
+  }
+  .theme-dot-active {
+    width: 22px;
+    height: 22px;
+  }
+  /* Panel opens to the right on mobile (was left-anchored) */
+  .theme-panel {
+    right: auto;
+    left: 0;
+  }
 }
 .theme-trigger:hover {
   background: rgba(25, 25, 32, 0.95);
