@@ -227,14 +227,15 @@ export function CarWizard() {
   return (
      <Card className="w-full mx-auto overflow-hidden grid md:grid-cols-[1fr_200px]" style={{maxWidth:'960px', boxShadow:'0 0 0 1px rgba(169,38,54,0.15), 0 25px 60px rgba(0,0,0,0.6)'}}>
       <div className="flex flex-col">
-        <div className="px-3 py-2 border-b flex items-center gap-3 min-h-[58px]">
-           <Logo size="small" />
-           {step > 0 && (
-             <div className="min-w-0 flex-1">
-                <h3 className="text-sm sm:text-base font-bold font-headline leading-tight truncate">{currentStepInfo.title}</h3>
-                <p className="text-xs text-muted-foreground leading-tight line-clamp-1 mt-0.5">{currentStepInfo.description}</p>
-             </div>
-           )}
+        {step > 0 && (
+          <div className="px-3 py-2 border-b flex items-center gap-3 min-h-[58px]">
+            <Logo size="small" />
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm sm:text-base font-bold font-headline leading-tight truncate">{currentStepInfo.title}</h3>
+              <p className="text-xs text-muted-foreground leading-tight line-clamp-1 mt-0.5">{currentStepInfo.description}</p>
+            </div>
+          </div>
+        )}
         </div>
         <CardContent className="p-0 flex-grow">
           <div className="relative h-[500px] sm:h-[550px] overflow-hidden">
