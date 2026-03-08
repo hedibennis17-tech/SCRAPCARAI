@@ -89,7 +89,7 @@ export function ValuationStep({ onNext, onBack, onRestart, data, lang }: Valuati
         } finally {
           setLoading(false);
         }
-      }, 3000);
+      }, 5000);
     };
 
     getValuation();
@@ -111,7 +111,7 @@ export function ValuationStep({ onNext, onBack, onRestart, data, lang }: Valuati
             <div className="flex flex-col items-center space-y-5 py-4">
               <div className="relative">
                 {/* Logo GIF animé */}
-                <img src="/logo.gif" alt="AI analyzing" className="w-24 h-24 object-contain" />
+                <img src="/logo.gif" alt="AI analyzing" className="w-44 h-44 object-contain" />
                 {/* Glow ring */}
                 <div className="absolute inset-0 rounded-full bg-primary/10 animate-ping" style={{ animationDuration: '2s' }} />
               </div>

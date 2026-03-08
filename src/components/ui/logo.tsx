@@ -2,10 +2,10 @@ import { cn } from '@/lib/utils';
 
 export function Logo({ className, size = 'default' }: { className?: string; size?: 'default' | 'small' | 'large' | 'xl' }) {
   const sizes = {
-    small:   { w: 44,  h: 44  },
-    default: { w: 140, h: 140 },
-    large:   { w: 192, h: 192 },
-    xl:      { w: 224, h: 224 },
+    small:   { w: 72,  h: 72  },
+    default: { w: 180, h: 180 },
+    large:   { w: 240, h: 240 },
+    xl:      { w: 280, h: 280 },
   };
   const { w, h } = sizes[size] ?? sizes.default;
 

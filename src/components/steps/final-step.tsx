@@ -262,7 +262,7 @@ export function FinalStep({ onRestart, data, lang }: FinalStepProps) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-6 text-center gap-5">
         <div className="relative">
-          <img src="/logo.gif" alt="Processing" className="w-20 h-20 object-contain" />
+          <img src="/logo.gif" alt="Processing" className="w-44 h-44 object-contain" />
           <div className="absolute inset-0 rounded-full bg-primary/10 animate-ping" style={{ animationDuration: '2s' }} />
         </div>
         <h3 className="text-xl font-bold font-headline">{c.loadingMain}</h3>
