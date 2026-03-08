@@ -1,272 +1,210 @@
 'use client';
 
 import {
-  doc,
-  collection,
-  setDoc,
-  serverTimestamp,
-  Firestore,
+  doc, collection, setDoc, serverTimestamp, Firestore,
 } from 'firebase/firestore';
+import { Auth, signInAnonymously } from 'firebase/auth';
 import type { Assessment } from '@/types';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function slugEmail(email: string): string {
-  return email.toLowerCase().replace(/[^a-z0-9]/g, '_');
+// ── Ensure authenticated user ─────────────────────────────────────────────────
+async function ensureAuth(auth: Auth): Promise<string | null> {
+  if (auth.currentUser) return auth.currentUser.uid;
+  try {
+    const cred = await signInAnonymously(auth);
+    return cred.user.uid;
+  } catch (e) {
+    console.error('ensureAuth failed:', e);
+    return null;
+  }
 }
 
-// ─── Collection writers ───────────────────────────────────────────────────────
-
-/** 1. transactions/{id} — source of truth for every module */
-async function writeTransaction(db: Firestore, assessment: Assessment) {
-  const id = assessment.id!;
-  const { client, vehicle, valuation, towing, yard, summary, condition } = assessment;
-
-  const pickupAddress =
-    towing?.sameAddress === 'no' && towing.alternateAddress
-      ? `${towing.alternateAddress.street}, ${towing.alternateAddress.city}`
-      : `${client?.address ?? ''}, ${client?.city ?? ''}`;
-
-  await setDoc(
-    doc(db, 'transactions', id),
-    {
-      assessmentId: id,
-      purchaseOrder: summary?.purchaseOrder ?? null,
-      deliveryOrder: summary?.deliveryOrder ?? null,
-      status: 'confirmed',
-
-      // Client snapshot
-      clientName:     client?.name     ?? null,
-      clientEmail:    client?.email    ?? null,
-      clientPhone:    client?.phone    ?? null,
-      clientAddress:  `${client?.address ?? ''}, ${client?.city ?? ''}, ${client?.province ?? ''}`,
-
-      // Vehicle snapshot
-      vehicleYear:    vehicle?.year    ?? null,
-      vehicleMake:    vehicle?.make    ?? null,
-      vehicleModel:   vehicle?.model   ?? null,
-      vehicleVin:     vehicle?.vin     ?? null,
-      vehicleMileage: vehicle?.mileage ?? null,
-      vehicleType:    vehicle?.vehicleType ?? null,
-
-      // Financials
-      finalPrice: valuation?.finalPrice ?? 0,
-      priceBreakdown: valuation?.breakdown ?? null,
-
-      // Pickup
-      pickupAddress,
-      pickupDate:     towing?.pickupDate     ?? null,
-      pickupTimeSlot: towing?.pickupTimeSlot ?? null,
-
-      // Yard
-      yardName:    yard?.yard_name       ?? null,
-      yardPhone:   yard?.contact.phone   ?? null,
-      yardEmail:   yard?.contact.email   ?? null,
-      yardAddress: yard?.contact.address ?? null,
-
-      // Condition flags
-      vehicleRuns:     condition?.runs     ?? null,
-      vehicleAccident: condition?.accident ?? null,
-      missingParts:    condition?.missingParts ?? [],
-      photos:          condition?.photos   ?? [],
-
-      createdAt:   serverTimestamp(),
-      updatedAt:   serverTimestamp(),
-    },
-    { merge: true }
-  );
+function getPickupAddress(a: Assessment): string {
+  const { client, towing } = a;
+  const alt = (towing as any)?.alternateAddress;
+  if (towing?.sameAddress === 'no' && alt?.street) {
+    return `${alt.street}, ${alt.city ?? ''}`.trim();
+  }
+  return `${client?.address ?? ''}, ${client?.city ?? ''}`.trim();
 }
 
-/** 2. clients/{slug} — client profile, updated on every transaction */
-async function writeClient(db: Firestore, assessment: Assessment) {
-  const { client } = assessment;
-  if (!client?.email) return;
-
-  const slug = slugEmail(client.email);
-
-  await setDoc(
-    doc(db, 'clients', slug),
-    {
-      name:     client.name    ?? null,
-      email:    client.email,
-      phone:    client.phone   ?? null,
-      address:  client.address ?? null,
-      city:     client.city    ?? null,
-      province: client.province ?? null,
-      postalCode: (client as any).postalCode ?? null,
-
-      lastAssessmentId: assessment.id ?? null,
-      lastTransactionDate: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+// ── Write to assessments (what admin dashboard reads) ────────────────────────
+async function writeAssessment(db: Firestore, uid: string, a: Assessment) {
+  await setDoc(doc(db, 'assessments', a.id!), {
+    id: a.id,
+    userId: uid,
+    status: 'confirmed',
+    client: a.client ?? null,
+    vehicle: a.vehicle ?? null,
+    condition: a.condition ?? null,
+    valuation: a.valuation ?? null,
+    towing: a.towing ?? null,
+    yard: a.yard ?? null,
+    summary: a.summary ?? null,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
 }
 
-/** 3. vehicles/{id} — full vehicle record with condition & photos */
-async function writeVehicle(db: Firestore, assessment: Assessment) {
-  const id = assessment.id!;
-  const { vehicle, condition, valuation, summary } = assessment;
-
-  await setDoc(
-    doc(db, 'vehicles', id),
-    {
-      assessmentId: id,
-      purchaseOrder: summary?.purchaseOrder ?? null,
-
-      year:         vehicle?.year         ?? null,
-      make:         vehicle?.make         ?? null,
-      model:        vehicle?.model        ?? null,
-      vin:          vehicle?.vin          ?? null,
-      mileage:      vehicle?.mileage      ?? null,
-      transmission: vehicle?.transmission ?? null,
-      driveline:    vehicle?.driveline    ?? null,
-      vehicleType:  vehicle?.vehicleType  ?? null,
-
-      // Condition
-      runs:              condition?.runs         ?? null,
-      accident:          condition?.accident     ?? null,
-      missingParts:      condition?.missingParts ?? [],
-      hasMechanicalIssues: condition?.hasMechanicalIssues ?? false,
-      mechanicalIssues:  condition?.mechanicalIssues ?? null,
-      hasRust:           condition?.hasRust       ?? false,
-      rustDetails:       condition?.rustDetails   ?? null,
-      wheelType:         condition?.wheelType     ?? null,
-      hasBodyDamage:     condition?.hasBodyDamage ?? false,
-      bodyDamageDetails: condition?.bodyDamageDetails ?? null,
-      isComplete:        condition?.isComplete    ?? null,
-      incompleteDetails: condition?.incompleteDetails ?? null,
-      photos:            condition?.photos        ?? [],
-
-      finalPrice: valuation?.finalPrice ?? 0,
-      status: 'pending_pickup',
-
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+// ── Write to transactions ────────────────────────────────────────────────────
+async function writeTransaction(db: Firestore, a: Assessment) {
+  await setDoc(doc(db, 'transactions', a.id!), {
+    assessmentId: a.id,
+    purchaseOrder: a.summary?.purchaseOrder ?? null,
+    deliveryOrder: a.summary?.deliveryOrder ?? null,
+    status: 'confirmed',
+    clientName: a.client?.name ?? null,
+    clientEmail: a.client?.email ?? null,
+    clientPhone: a.client?.phone ?? null,
+    clientAddress: `${a.client?.address ?? ''}, ${a.client?.city ?? ''}, ${a.client?.province ?? ''}`,
+    vehicleYear: a.vehicle?.year ?? null,
+    vehicleMake: a.vehicle?.make ?? null,
+    vehicleModel: a.vehicle?.model ?? null,
+    vehicleVin: a.vehicle?.vin ?? null,
+    vehicleMileage: a.vehicle?.mileage ?? null,
+    finalPrice: a.valuation?.finalPrice ?? 0,
+    priceBreakdown: a.valuation?.breakdown ?? null,
+    pickupAddress: getPickupAddress(a),
+    pickupDate: a.towing?.pickupDate ?? null,
+    pickupTimeSlot: a.towing?.pickupTimeSlot ?? null,
+    yardName: a.yard?.yard_name ?? null,
+    yardPhone: a.yard?.contact?.phone ?? null,
+    yardAddress: a.yard?.contact?.address ?? null,
+    photos: a.condition?.photos ?? [],
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
 }
 
-/** 4. towing_dispatches/{id} — dispatch sheet for driver */
-async function writeTowingDispatch(db: Firestore, assessment: Assessment) {
-  const id = assessment.id!;
-  const { client, vehicle, towing, yard, summary } = assessment;
-
-  const pickupAddress =
-    towing?.sameAddress === 'no' && towing.alternateAddress
-      ? `${towing.alternateAddress.street}, ${towing.alternateAddress.city}`
-      : `${client?.address ?? ''}, ${client?.city ?? ''}`;
-
-  await setDoc(
-    doc(db, 'towing_dispatches', id),
-    {
-      assessmentId:   id,
-      purchaseOrder:  summary?.purchaseOrder ?? null,
-      deliveryOrder:  summary?.deliveryOrder ?? null,
-
-      // Client contact for driver
-      clientName:  client?.name  ?? null,
-      clientPhone: client?.phone ?? null,
-      clientEmail: client?.email ?? null,
-
-      // Vehicle for driver
-      vehicleSummary: `${vehicle?.year ?? ''} ${vehicle?.make ?? ''} ${vehicle?.model ?? ''}`.trim(),
-      vehicleVin:     vehicle?.vin ?? null,
-
-      // Pickup details
-      pickupAddress,
-      pickupDate:     towing?.pickupDate     ?? null,
-      pickupTimeSlot: towing?.pickupTimeSlot ?? null,
-      parkingLocation: towing?.parkingLocation ?? null,
-
-      // Vehicle state flags (important for driver)
-      allWheels:  towing?.allWheels  ?? null,
-      flatTires:  towing?.flatTires  ?? null,
-      blocked:    towing?.blocked    ?? null,
-      hasKeys:    towing?.hasKeys    ?? null,
-
-      // Assigned yard
-      yardName:    yard?.yard_name       ?? null,
-      yardPhone:   yard?.contact.phone   ?? null,
-      yardEmail:   yard?.contact.email   ?? null,
-      yardAddress: yard?.contact.address ?? null,
-
-      status: 'scheduled',
-      driverNotes: null,
-
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+// ── Write to clients ─────────────────────────────────────────────────────────
+async function writeClient(db: Firestore, a: Assessment) {
+  if (!a.client?.email) return;
+  const slug = a.client.email.toLowerCase().replace(/[^a-z0-9]/g, '_');
+  await setDoc(doc(db, 'clients', slug), {
+    name: a.client.name ?? null,
+    email: a.client.email,
+    phone: a.client.phone ?? null,
+    address: a.client.address ?? null,
+    city: a.client.city ?? null,
+    province: a.client.province ?? null,
+    lastAssessmentId: a.id,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
 }
 
-/** 5. reports_data/{id} — aggregation-ready snapshot for charts */
-async function writeReportData(db: Firestore, assessment: Assessment) {
-  const id = assessment.id!;
-  const { client, vehicle, valuation, towing, yard } = assessment;
-
-  const pickupDate = towing?.pickupDate
-    ? new Date(towing.pickupDate)
-    : null;
-
-  await setDoc(
-    doc(db, 'reports_data', id),
-    {
-      assessmentId: id,
-
-      // Dimensions for charts
-      province:    client?.province     ?? null,
-      city:        client?.city         ?? null,
-      vehicleMake: vehicle?.make        ?? null,
-      vehicleYear: vehicle?.year        ?? null,
-      yardName:    yard?.yard_name      ?? null,
-
-      // Metrics
-      finalPrice: valuation?.finalPrice ?? 0,
-      metalValue: valuation?.breakdown?.metalValue ?? 0,
-      partsValue: valuation?.breakdown?.partsValue ?? 0,
-
-      // Date fields for time-series
-      pickupMonth: pickupDate ? pickupDate.getMonth() + 1 : null,
-      pickupYear:  pickupDate ? pickupDate.getFullYear()  : null,
-
-      // Flags
-      vehicleRuns:    assessment.condition?.runs ?? null,
-      hadAccident:    assessment.condition?.accident ?? null,
-
-      createdAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+// ── Write to vehicles ────────────────────────────────────────────────────────
+async function writeVehicle(db: Firestore, a: Assessment) {
+  await setDoc(doc(db, 'vehicles', a.id!), {
+    assessmentId: a.id,
+    purchaseOrder: a.summary?.purchaseOrder ?? null,
+    year: a.vehicle?.year ?? null,
+    make: a.vehicle?.make ?? null,
+    model: a.vehicle?.model ?? null,
+    vin: a.vehicle?.vin ?? null,
+    mileage: a.vehicle?.mileage ?? null,
+    transmission: a.vehicle?.transmission ?? null,
+    vehicleType: a.vehicle?.vehicleType ?? null,
+    runs: a.condition?.runs ?? null,
+    accident: a.condition?.accident ?? null,
+    missingParts: a.condition?.missingParts ?? [],
+    photos: a.condition?.photos ?? [],
+    finalPrice: a.valuation?.finalPrice ?? 0,
+    status: 'pending_pickup',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
 }
 
-// ─── Main export ──────────────────────────────────────────────────────────────
+// ── Write to towing_dispatches ────────────────────────────────────────────────
+async function writeTowing(db: Firestore, a: Assessment) {
+  await setDoc(doc(db, 'towing_dispatches', a.id!), {
+    assessmentId: a.id,
+    purchaseOrder: a.summary?.purchaseOrder ?? null,
+    deliveryOrder: a.summary?.deliveryOrder ?? null,
+    clientName: a.client?.name ?? null,
+    clientPhone: a.client?.phone ?? null,
+    vehicleSummary: `${a.vehicle?.year ?? ''} ${a.vehicle?.make ?? ''} ${a.vehicle?.model ?? ''}`.trim(),
+    vehicleVin: a.vehicle?.vin ?? null,
+    pickupAddress: getPickupAddress(a),
+    pickupDate: a.towing?.pickupDate ?? null,
+    pickupTimeSlot: a.towing?.pickupTimeSlot ?? null,
+    parkingLocation: a.towing?.parkingLocation ?? null,
+    allWheels: a.towing?.allWheels ?? null,
+    flatTires: a.towing?.flatTires ?? null,
+    blocked: a.towing?.blocked ?? null,
+    hasKeys: a.towing?.hasKeys ?? null,
+    yardName: a.yard?.yard_name ?? null,
+    yardPhone: a.yard?.contact?.phone ?? null,
+    status: 'scheduled',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
 
-/**
- * Called once when the wizard reaches FinalStep.
- * Writes the complete assessment to all 5 Firestore collections in parallel.
- */
+// ── Write to reports_data ─────────────────────────────────────────────────────
+async function writeReport(db: Firestore, a: Assessment) {
+  const pd = a.towing?.pickupDate ? new Date(a.towing.pickupDate) : null;
+  await setDoc(doc(db, 'reports_data', a.id!), {
+    assessmentId: a.id,
+    province: a.client?.province ?? null,
+    city: a.client?.city ?? null,
+    vehicleMake: a.vehicle?.make ?? null,
+    vehicleYear: a.vehicle?.year ?? null,
+    yardName: a.yard?.yard_name ?? null,
+    finalPrice: a.valuation?.finalPrice ?? 0,
+    metalValue: a.valuation?.breakdown?.metalValue ?? 0,
+    partsValue: a.valuation?.breakdown?.partsValue ?? 0,
+    pickupMonth: pd ? pd.getMonth() + 1 : null,
+    pickupYear: pd ? pd.getFullYear() : null,
+    createdAt: serverTimestamp(),
+  }, { merge: true });
+}
+
+// ── MAIN EXPORT ───────────────────────────────────────────────────────────────
 export async function finalizeTransaction(
   db: Firestore,
+  auth: Auth,
   assessment: Assessment
 ): Promise<{ success: boolean; error?: string }> {
-  if (!assessment.id || !assessment.summary?.purchaseOrder) {
-    return { success: false, error: 'Missing assessment ID or summary' };
-  }
-
   try {
+    // 1. Auth
+    const uid = await ensureAuth(auth);
+    if (!uid) return { success: false, error: 'Auth failed' };
+
+    // 2. Ensure ID
+    if (!assessment.id) {
+      assessment.id = doc(collection(db, 'assessments')).id;
+    }
+
+    // 3. Ensure summary
+    if (!assessment.summary?.purchaseOrder) {
+      const seq = Math.floor(Math.random() * 900) + 100;
+      const yd = assessment.yard?.yard_name?.substring(0, 2).toUpperCase() ?? 'SC';
+      const now = new Date();
+      const yr = now.getFullYear().toString().slice(-2);
+      const mo = (now.getMonth() + 1).toString().padStart(2, '0');
+      assessment.summary = {
+        purchaseOrder: `PO-${yd}-${yr}${mo}-${seq}`,
+        deliveryOrder: `DO-${yd}-${yr}${mo}-${seq}`,
+      };
+    }
+
+    console.log('📝 Writing to Firestore, id:', assessment.id);
+
+    // 4. Write all 6 collections
     await Promise.all([
+      writeAssessment(db, uid, assessment),
       writeTransaction(db, assessment),
       writeClient(db, assessment),
       writeVehicle(db, assessment),
-      writeTowingDispatch(db, assessment),
-      writeReportData(db, assessment),
+      writeTowing(db, assessment),
+      writeReport(db, assessment),
     ]);
+
+    console.log('✅ All 6 collections written for ID:', assessment.id);
     return { success: true };
+
   } catch (err: any) {
-    console.error('❌ finalizeTransaction error:', err);
+    console.error('❌ finalizeTransaction failed:', err.code, err.message);
     return { success: false, error: err?.message ?? 'Unknown error' };
   }
 }

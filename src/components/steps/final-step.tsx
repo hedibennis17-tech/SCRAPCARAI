@@ -1,12 +1,13 @@
-
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import type { Assessment } from '@/types';
-import { AlertTriangle, CheckCircle, PartyPopper, RefreshCw, Ticket, Loader2, Download, Mail, MessageSquare } from 'lucide-react';
+import { AlertTriangle, CheckCircle, PartyPopper, RefreshCw, Ticket, Loader2, Download, Database } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { sendConfirmationEmail } from '@/app/actions';
+import { finalizeTransaction } from '@/lib/transaction-service';
+import { useFirebase } from '@/firebase';
 
 type FinalStepProps = {
   onRestart: () => void;
@@ -19,227 +20,169 @@ const content = {
     title: "Offer Accepted!",
     thankYou: "Thank you, {name}. Your vehicle assessment is complete.",
     refNumbers: "Your Reference Numbers",
-    opNumber: "PO:",
-    doNumber: "DO:",
+    opNumber: "PO:", doNumber: "DO:",
     whatsNext: "What's next?",
-    emailConfirmation: "A confirmation email with all details has been sent to <strong>{email}</strong>.",
+    emailOk: "Confirmation email sent to <strong>{email}</strong>.",
     emailError: "Could not send confirmation email. Please contact us.",
-    smsConfirmation: "An SMS confirmation has been sent to <strong>{phone}</strong>.",
-    smsError: "Could not send SMS confirmation.",
+    dbOk: "Transaction saved to all modules.",
+    dbError: "Transaction save error — contact support.",
     importantInstructions: "Important Instructions",
     instructions: [
-      "REGISTRATION SIGNED",
-      "KEYS OF VEHICLE",
-      "REMOVE ALL PRIVATE ITEMS FROM VEHICLE",
-      "REMOVE LICENSE PLATES",
-      "Our driver will call 30-60 minutes before arrival.",
-      "They will inspect the car (Engine, Catalyst, Transmission, Battery, and Wheels) and provide the final amount.",
-      "If you have any questions, please call our dispatch line: <strong>{phone}</strong>.",
+      "✅ REGISTRATION SIGNED","🔑 KEYS OF VEHICLE",
+      "📦 REMOVE ALL PRIVATE ITEMS FROM VEHICLE","🚫 REMOVE LICENSE PLATES",
+      "📞 Our driver will call 30–60 min before arrival.",
+      "🔍 They will inspect the car (Engine, Catalyst, Transmission, Battery, Wheels).",
+      "❓ Questions? Call dispatch: <strong>{phone}</strong>.",
     ],
     newAssessment: "Start New Assessment",
-    downloadPO: "Download PO",
-    downloadDO: "Download DO",
-    generatingSummary: "Generating your summary & sending notifications...",
+    loading: "Saving transaction to all modules...",
   },
   fr: {
     title: "Offre acceptée !",
     thankYou: "Merci, {name}. L'évaluation de votre véhicule est terminée.",
     refNumbers: "Vos numéros de référence",
-    opNumber: "PO :",
-    doNumber: "DO :",
+    opNumber: "PO :", doNumber: "DO :",
     whatsNext: "Quelle est la suite ?",
-    emailConfirmation: "Un courriel de confirmation a été envoyé à <strong>{email}</strong>.",
+    emailOk: "Courriel de confirmation envoyé à <strong>{email}</strong>.",
     emailError: "Échec de l'envoi du courriel. Veuillez nous contacter.",
-    smsConfirmation: "Un SMS de confirmation a été envoyé au <strong>{phone}</strong>.",
-    smsError: "Échec de l'envoi du SMS.",
+    dbOk: "Transaction enregistrée dans tous les modules.",
+    dbError: "Erreur d'enregistrement — contactez le support.",
     importantInstructions: "Instructions importantes",
     instructions: [
-      "IMMATRICULATION SIGNÉE",
-      "CLÉS DU VÉHICULE",
-      "RETIREZ TOUS VOS OBJETS PERSONNELS DU VÉHICULE",
-      "RETIREZ VOS PLAQUES D'IMMATRICULATION",
-      "Notre chauffeur vous appellera 30 à 60 minutes avant son arrivée.",
-      "Il inspectera la voiture (moteur, catalyseur, transmission, batterie et roues) et fournira le montant final.",
-      "Si vous avez des questions, veuillez appeler notre ligne de répartition : <strong>{phone}</strong>.",
+      "✅ IMMATRICULATION SIGNÉE","🔑 CLÉS DU VÉHICULE",
+      "📦 RETIREZ TOUS VOS OBJETS PERSONNELS","🚫 RETIREZ VOS PLAQUES",
+      "📞 Notre chauffeur appellera 30–60 min avant son arrivée.",
+      "🔍 Il inspectera le véhicule (moteur, catalyseur, transmission, batterie, roues).",
+      "❓ Questions ? Appelez la répartition : <strong>{phone}</strong>.",
     ],
     newAssessment: "Nouvelle évaluation",
-    downloadPO: "Télécharger PO",
-    downloadDO: "Télécharger DO",
-    generatingSummary: "Génération du résumé et envoi des notifications...",
-  }
+    loading: "Enregistrement de la transaction dans tous les modules...",
+  },
 };
-
-async function sendSmsNotification(assessment: Assessment, lang: 'en' | 'fr') {
-  try {
-    const res = await fetch('/api/send-sms', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ assessment, lang }),
-    });
-    const data = await res.json();
-    return data.ok;
-  } catch (err) {
-    console.error('SMS failed:', err);
-    return false;
-  }
-}
-
-async function downloadPdf(assessment: Assessment, orderType: 'PO' | 'DO') {
-  try {
-    const res = await fetch('/api/generate-pdf', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ assessment, orderType }),
-    });
-    const data = await res.json();
-    if (!data.ok || !data.html) return;
-
-    // Open HTML in new tab for printing/saving as PDF
-    const blob = new Blob([data.html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = data.fileName?.replace('.pdf', '.html') || `${orderType}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
-  } catch (err) {
-    console.error('PDF generation failed:', err);
-  }
-}
 
 export function FinalStep({ onRestart, data, lang }: FinalStepProps) {
   const c = content[lang];
+  const { firestore, auth } = useFirebase();
   const { summary, client, yard } = data;
-  const [emailSent, setEmailSent] = useState(false);
-  const [emailError, setEmailError] = useState(false);
-  const [smsSent, setSmsSent] = useState(false);
-  const [smsError, setSmsError] = useState(false);
-  const [isSending, setIsSending] = useState(true);
+
+  const [isSending, setIsSending]     = useState(true);
+  const [dbOk, setDbOk]               = useState(false);
+  const [dbError, setDbError]         = useState(false);
+  const [emailOk, setEmailOk]         = useState(false);
+  const [emailError, setEmailError]   = useState(false);
+  const ran = useRef(false);
 
   useEffect(() => {
-    if (!summary || emailSent) return;
+    if (ran.current) return;
+    ran.current = true;
 
-    const runAll = async () => {
+    const run = async () => {
       setIsSending(true);
       try {
-        // 1. Send confirmation email
-        const emailResult = await sendConfirmationEmail(data, lang);
-        if (emailResult.success) {
-          setEmailSent(true);
+        // ── 1. Save to Firestore (ALL collections) ──
+        if (firestore && auth) {
+          const txResult = await finalizeTransaction(firestore, auth, data);
+          console.log('TX result:', txResult);
+          txResult.success ? setDbOk(true) : setDbError(true);
         } else {
-          setEmailError(true);
+          console.error('Firestore or auth missing:', { firestore: !!firestore, auth: !!auth });
+          setDbError(true);
         }
 
-        // 2. Send SMS via Twilio
-        const smsOk = await sendSmsNotification(data, lang);
-        if (smsOk) {
-          setSmsSent(true);
-        } else {
-          setSmsError(true);
-        }
+        // ── 2. Send emails to both parties ──
+        const emailResult = await sendConfirmationEmail(data, lang);
+        emailResult.success ? setEmailOk(true) : setEmailError(true);
+
       } catch (e) {
-        console.error("Failed to send notifications:", e);
+        console.error('FinalStep error:', e);
+        setDbError(true);
         setEmailError(true);
-        setSmsError(true);
       } finally {
         setIsSending(false);
       }
     };
 
-    runAll();
-  }, [summary, data, lang, emailSent]);
+    run();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  if (!summary || isSending) {
+  if (isSending) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <h3 className="text-2xl font-bold font-headline">{c.generatingSummary}</h3>
-        <div className="flex gap-4 mt-4 text-sm text-muted-foreground">
-          <span className="flex items-center gap-1"><Mail className="h-4 w-4" /> Email...</span>
-          <span className="flex items-center gap-1"><MessageSquare className="h-4 w-4" /> SMS...</span>
+      <div className="flex flex-col items-center justify-center h-full p-6 text-center gap-5">
+        <Loader2 className="h-14 w-14 animate-spin text-primary" />
+        <h3 className="text-xl font-bold font-headline">{c.loading}</h3>
+        <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+          <span className="flex items-center gap-2"><Database className="h-4 w-4 text-primary" /> Firestore — assessments, clients, vehicles...</span>
+          <span className="flex items-center gap-2"><Database className="h-4 w-4 text-primary" /> towing_dispatches, reports_data...</span>
         </div>
       </div>
-    )
+    );
   }
 
-  return (
-    <div className="flex flex-col items-center justify-center h-full p-6 text-center overflow-y-auto">
-      <PartyPopper className="h-16 w-16 text-primary mb-4" />
-      <p className="text-muted-foreground max-w-md mx-auto mt-2" dangerouslySetInnerHTML={{ __html: c.thankYou.replace('{name}', client?.name || '') }} />
+  const po = summary?.purchaseOrder ?? data.summary?.purchaseOrder ?? '—';
+  const doNum = summary?.deliveryOrder ?? data.summary?.deliveryOrder ?? '—';
 
-      <Card className="w-full max-w-md mt-8">
+  return (
+    <div className="flex flex-col items-center justify-center h-full p-6 text-center overflow-y-auto gap-4">
+      <PartyPopper className="h-14 w-14 text-primary" />
+      <h2 className="text-2xl font-bold font-headline">{c.title}</h2>
+      <p className="text-muted-foreground max-w-md text-sm"
+        dangerouslySetInnerHTML={{ __html: c.thankYou.replace('{name}', client?.name ?? '') }} />
+
+      {/* Ref Numbers */}
+      <Card className="w-full max-w-md">
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center justify-center gap-2">
-            <Ticket className="h-5 w-5 text-primary"/>
-            {c.refNumbers}
+            <Ticket className="h-5 w-5 text-primary" />{c.refNumbers}
           </CardTitle>
         </CardHeader>
-        <CardContent className="text-center space-y-2">
-          <p className="font-mono text-lg">
-            <span className="font-semibold">{c.opNumber}</span> {summary.purchaseOrder}
-          </p>
-          <p className="font-mono text-lg">
-            <span className="font-semibold">{c.doNumber}</span> {summary.deliveryOrder}
-          </p>
-          <div className="flex gap-2 justify-center mt-4">
-            <Button size="sm" variant="outline" onClick={() => downloadPdf(data, 'PO')}>
-              <Download className="mr-1 h-3 w-3" />
-              {c.downloadPO}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => downloadPdf(data, 'DO')}>
-              <Download className="mr-1 h-3 w-3" />
-              {c.downloadDO}
-            </Button>
-          </div>
+        <CardContent className="text-center space-y-1">
+          <p className="font-mono text-lg"><span className="font-semibold">{c.opNumber}</span> {po}</p>
+          <p className="font-mono text-lg"><span className="font-semibold">{c.doNumber}</span> {doNum}</p>
         </CardContent>
       </Card>
 
-      <div className="bg-secondary/50 rounded-lg p-4 max-w-sm w-full mt-8 text-left space-y-3">
-        <h4 className="font-semibold">{c.whatsNext}</h4>
+      {/* Status */}
+      <div className="w-full max-w-md space-y-2 text-left bg-secondary/40 rounded-xl p-4">
+        <h4 className="font-semibold mb-2">{c.whatsNext}</h4>
 
-        {/* Email status */}
-        <div className="flex items-start gap-2 text-sm text-muted-foreground">
-          {emailError
-            ? <AlertTriangle className="h-4 w-4 mt-1 text-destructive shrink-0" />
-            : <CheckCircle className="h-4 w-4 mt-1 text-primary shrink-0" />}
-          <p dangerouslySetInnerHTML={{
-            __html: emailError
-              ? c.emailError
-              : c.emailConfirmation.replace('{email}', client?.email || '')
-          }} />
+        <div className="flex items-start gap-2 text-sm">
+          {dbError
+            ? <AlertTriangle className="h-4 w-4 mt-0.5 text-destructive shrink-0" />
+            : <CheckCircle className="h-4 w-4 mt-0.5 text-green-500 shrink-0" />}
+          <p className={dbError ? 'text-destructive' : 'text-muted-foreground'}>
+            {dbError ? c.dbError : c.dbOk}
+          </p>
         </div>
 
-        {/* SMS status */}
-        <div className="flex items-start gap-2 text-sm text-muted-foreground">
-          {smsError
-            ? <AlertTriangle className="h-4 w-4 mt-1 text-destructive shrink-0" />
-            : <CheckCircle className="h-4 w-4 mt-1 text-primary shrink-0" />}
-          <p dangerouslySetInnerHTML={{
-            __html: smsError
-              ? c.smsError
-              : c.smsConfirmation.replace('{phone}', client?.phone || '')
+        <div className="flex items-start gap-2 text-sm">
+          {emailError
+            ? <AlertTriangle className="h-4 w-4 mt-0.5 text-destructive shrink-0" />
+            : <CheckCircle className="h-4 w-4 mt-0.5 text-green-500 shrink-0" />}
+          <p className="text-muted-foreground" dangerouslySetInnerHTML={{
+            __html: emailError ? c.emailError : c.emailOk.replace('{email}', client?.email ?? '')
           }} />
         </div>
       </div>
 
-      <Card className="w-full max-w-lg mt-6 border-destructive text-destructive">
-        <CardHeader className="flex-row items-center gap-2">
-          <AlertTriangle className="h-6 w-6" />
-          <CardTitle className="text-lg text-destructive">{c.importantInstructions}</CardTitle>
+      {/* Instructions */}
+      <Card className="w-full max-w-lg border-destructive">
+        <CardHeader className="flex-row items-center gap-2 pb-2">
+          <AlertTriangle className="h-5 w-5 text-destructive" />
+          <CardTitle className="text-base text-destructive">{c.importantInstructions}</CardTitle>
         </CardHeader>
-        <CardContent className="text-left text-sm space-y-2">
-          {c.instructions.map((instruction, index) => (
-            <p key={index} dangerouslySetInnerHTML={{ __html: instruction.replace('{phone}', yard?.contact.phone || '1-800-111-1111') }} />
+        <CardContent className="text-left text-sm space-y-1.5">
+          {c.instructions.map((line, i) => (
+            <p key={i} dangerouslySetInnerHTML={{
+              __html: line.replace('{phone}', yard?.contact?.phone ?? '1-800-111-1111')
+            }} />
           ))}
         </CardContent>
       </Card>
 
-      <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-        <Button size="lg" onClick={onRestart} variant="outline">
-          <RefreshCw className="mr-2 h-4 w-4" />
-          {c.newAssessment}
-        </Button>
-      </div>
+      <Button size="lg" onClick={onRestart} variant="outline" className="mt-2">
+        <RefreshCw className="mr-2 h-4 w-4" />{c.newAssessment}
+      </Button>
     </div>
   );
 }
