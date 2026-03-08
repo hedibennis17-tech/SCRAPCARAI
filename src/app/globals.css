@@ -292,7 +292,7 @@
   background: rgba(255,255,255,0.07) !important;
 }
 
-/* Select */
+/* ── SELECT TRIGGER (inside card, not a portal) ── */
 .saas-bg [role="combobox"] {
   background: var(--wizard-input-bg) !important;
   border: 1px solid var(--wizard-input-border) !important;
@@ -304,27 +304,8 @@
   border-color: rgba(255,255,255,0.18) !important;
 }
 .saas-bg [data-state="open"] [role="combobox"] {
-  border-color: var(--wizard-red) !important;
-  box-shadow: 0 0 0 3px var(--wizard-red-glow) !important;
-}
-.saas-bg [role="listbox"],
-.saas-bg [data-radix-popper-content-wrapper] [class*="rounded-md"] {
-  background: #141419 !important;
-  border: 1px solid rgba(255,255,255,0.09) !important;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.85) !important;
-  border-radius: 12px !important;
-  overflow: hidden !important;
-}
-.saas-bg [role="option"] {
-  color: rgba(255,255,255,0.78) !important;
-  font-size: 0.88rem !important;
-  border-radius: 6px !important;
-  transition: background 0.13s !important;
-}
-.saas-bg [role="option"]:hover,
-.saas-bg [role="option"][data-highlighted] {
-  background: var(--t-primary-glow) !important;
-  color: white !important;
+  border-color: var(--t-primary) !important;
+  box-shadow: 0 0 0 3px var(--t-primary-glow) !important;
 }
 
 /* ============================================================
@@ -428,6 +409,252 @@
   .orb-red   { width: 300px; height: 300px; top: -80px; left: -80px; }
   .orb-dark  { width: 250px; height: 250px; }
   .orb-accent{ display: none; }
+}
+
+
+/* ============================================================
+   PORTALS — Select, Popover, Calendar
+   Radix renders these at <body> level, outside .saas-bg.
+   Must target globally, not via .saas-bg parent.
+   ============================================================ */
+
+/* ── SELECT DROPDOWN CONTENT (portal) ────────────────────── */
+[data-radix-popper-content-wrapper] [role="listbox"],
+[data-radix-select-content] {
+  background: #131318 !important;
+  border: 1px solid rgba(255,255,255,0.09) !important;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.04) !important;
+  border-radius: 14px !important;
+  overflow: hidden !important;
+  backdrop-filter: blur(20px) !important;
+}
+
+/* Select viewport padding */
+[data-radix-popper-content-wrapper] [role="listbox"] > div,
+[data-radix-select-viewport] {
+  padding: 6px !important;
+}
+
+/* ── SELECT ITEMS ─────────────────────────────────────────── */
+[role="option"],
+[data-radix-select-item] {
+  color: rgba(255,255,255,0.75) !important;
+  font-size: 0.875rem !important;
+  font-family: 'Inter', sans-serif !important;
+  border-radius: 8px !important;
+  padding: 8px 10px !important;
+  cursor: pointer !important;
+  transition: background 0.13s ease, color 0.13s ease !important;
+  outline: none !important;
+  background: transparent !important;
+}
+
+/* Hover & keyboard focus — theme-aware */
+[role="option"]:hover,
+[role="option"][data-highlighted],
+[data-radix-select-item]:hover,
+[data-radix-select-item][data-highlighted],
+[data-radix-select-item]:focus {
+  background: color-mix(in srgb, var(--t-primary, #c0303f) 18%, transparent) !important;
+  color: white !important;
+}
+
+/* Selected item checkmark */
+[role="option"][aria-selected="true"],
+[data-radix-select-item][data-state="checked"] {
+  color: white !important;
+  font-weight: 500 !important;
+}
+
+/* Select group label */
+[data-radix-select-label] {
+  color: rgba(255,255,255,0.35) !important;
+  font-size: 0.7rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  padding: 4px 10px 2px !important;
+}
+
+/* Select separator */
+[data-radix-select-separator] {
+  background: rgba(255,255,255,0.07) !important;
+  height: 1px !important;
+  margin: 4px 0 !important;
+}
+
+/* ── POPOVER CONTENT (portal — used for Calendar) ─────────── */
+[data-radix-popper-content-wrapper] [role="dialog"],
+[data-radix-popover-content] {
+  background: #131318 !important;
+  border: 1px solid rgba(255,255,255,0.09) !important;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.88), 0 0 0 1px rgba(255,255,255,0.04) !important;
+  border-radius: 16px !important;
+  backdrop-filter: blur(24px) !important;
+  color: rgba(255,255,255,0.88) !important;
+  overflow: hidden !important;
+}
+
+/* ── CALENDAR (DayPicker) inside Popover ──────────────────── */
+
+/* Outer wrapper */
+[data-radix-popover-content] .rdp,
+[data-radix-popper-content-wrapper] .rdp {
+  --rdp-cell-size: 36px !important;
+  --rdp-accent-color: var(--t-primary, #c0303f) !important;
+  --rdp-background-color: color-mix(in srgb, var(--t-primary, #c0303f) 18%, transparent) !important;
+  color: rgba(255,255,255,0.85) !important;
+}
+
+/* Caption (month + year label) */
+[data-radix-popover-content] .rdp-caption_label,
+[data-radix-popper-content-wrapper] .rdp-caption_label {
+  color: rgba(255,255,255,0.92) !important;
+  font-family: 'Syne', sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 0.95rem !important;
+}
+
+/* Nav arrows */
+[data-radix-popover-content] .rdp-nav_button,
+[data-radix-popper-content-wrapper] .rdp-nav_button {
+  background: rgba(255,255,255,0.05) !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  color: rgba(255,255,255,0.7) !important;
+  border-radius: 8px !important;
+  transition: all 0.15s !important;
+}
+[data-radix-popover-content] .rdp-nav_button:hover,
+[data-radix-popper-content-wrapper] .rdp-nav_button:hover {
+  background: rgba(255,255,255,0.1) !important;
+  color: white !important;
+}
+
+/* Day-of-week headers */
+[data-radix-popover-content] .rdp-head_cell,
+[data-radix-popper-content-wrapper] .rdp-head_cell {
+  color: rgba(255,255,255,0.3) !important;
+  font-size: 0.72rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+}
+
+/* Regular day buttons */
+[data-radix-popover-content] .rdp-day,
+[data-radix-popper-content-wrapper] .rdp-day {
+  color: rgba(255,255,255,0.75) !important;
+  border-radius: 8px !important;
+  font-size: 0.85rem !important;
+  font-weight: 400 !important;
+  transition: background 0.13s ease, color 0.13s ease !important;
+  background: transparent !important;
+}
+
+/* Hover on a day */
+[data-radix-popover-content] .rdp-day:hover:not(.rdp-day_selected):not(.rdp-day_disabled),
+[data-radix-popper-content-wrapper] .rdp-day:hover:not(.rdp-day_selected):not(.rdp-day_disabled) {
+  background: color-mix(in srgb, var(--t-primary, #c0303f) 18%, transparent) !important;
+  color: white !important;
+}
+
+/* Today */
+[data-radix-popover-content] .rdp-day_today,
+[data-radix-popper-content-wrapper] .rdp-day_today {
+  background: rgba(255,255,255,0.08) !important;
+  color: white !important;
+  font-weight: 600 !important;
+}
+
+/* Selected day */
+[data-radix-popover-content] .rdp-day_selected,
+[data-radix-popper-content-wrapper] .rdp-day_selected {
+  background: var(--t-primary, #c0303f) !important;
+  color: white !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--t-primary, #c0303f) 50%, transparent) !important;
+  border-radius: 8px !important;
+}
+[data-radix-popover-content] .rdp-day_selected:hover,
+[data-radix-popper-content-wrapper] .rdp-day_selected:hover {
+  background: var(--t-primary, #c0303f) !important;
+  filter: brightness(1.12) !important;
+}
+
+/* Outside-month days */
+[data-radix-popover-content] .rdp-day_outside,
+[data-radix-popper-content-wrapper] .rdp-day_outside {
+  color: rgba(255,255,255,0.2) !important;
+}
+
+/* Disabled days */
+[data-radix-popover-content] .rdp-day_disabled,
+[data-radix-popper-content-wrapper] .rdp-day_disabled {
+  color: rgba(255,255,255,0.15) !important;
+  cursor: not-allowed !important;
+}
+
+/* ── APPOINTMENT TIME SLOT RADIO CARDS ────────────────────── */
+/* These ARE inside .saas-bg so the parent selector works */
+.saas-bg [class*="bg-popover"][class*="rounded-md"],
+.saas-bg label[class*="border"][class*="rounded-md"][class*="p-4"] {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: rgba(255,255,255,0.1) !important;
+  color: rgba(255,255,255,0.8) !important;
+  transition: all 0.18s ease !important;
+  cursor: pointer !important;
+}
+.saas-bg label[class*="border"][class*="rounded-md"][class*="p-4"]:hover {
+  background: color-mix(in srgb, var(--t-primary) 12%, transparent) !important;
+  border-color: color-mix(in srgb, var(--t-primary) 40%, transparent) !important;
+  color: white !important;
+}
+/* Selected time slot */
+.saas-bg label[class*="border-primary"] {
+  background: color-mix(in srgb, var(--t-primary) 15%, transparent) !important;
+  border-color: var(--t-primary) !important;
+  color: white !important;
+  box-shadow: 0 0 0 1px var(--t-primary) !important;
+}
+
+/* ── DROPDOWN MENU (admin nav, etc.) ──────────────────────── */
+[data-radix-dropdown-menu-content],
+[data-radix-context-menu-content] {
+  background: #131318 !important;
+  border: 1px solid rgba(255,255,255,0.09) !important;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.85) !important;
+  border-radius: 12px !important;
+  backdrop-filter: blur(20px) !important;
+  padding: 6px !important;
+}
+
+[data-radix-dropdown-menu-content] [role="menuitem"],
+[data-radix-context-menu-content] [role="menuitem"] {
+  color: rgba(255,255,255,0.75) !important;
+  border-radius: 8px !important;
+  font-size: 0.875rem !important;
+  transition: background 0.13s !important;
+  cursor: pointer !important;
+}
+[data-radix-dropdown-menu-content] [role="menuitem"]:hover,
+[data-radix-dropdown-menu-content] [role="menuitem"]:focus,
+[data-radix-context-menu-content] [role="menuitem"]:hover {
+  background: color-mix(in srgb, var(--t-primary, #c0303f) 16%, transparent) !important;
+  color: white !important;
+}
+
+[data-radix-dropdown-menu-separator] {
+  background: rgba(255,255,255,0.07) !important;
+  height: 1px !important;
+  margin: 4px 0 !important;
+}
+
+[data-radix-dropdown-menu-label] {
+  color: rgba(255,255,255,0.35) !important;
+  font-size: 0.7rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
 }
 
 /* ============================================================
@@ -706,10 +933,30 @@
   box-shadow: 0 0 0 2px #08080c, 0 0 0 4px var(--t-primary) !important;
 }
 
-/* Select option hover */
-[data-theme] .saas-bg [role="option"]:hover,
-[data-theme] .saas-bg [role="option"][data-highlighted] {
-  background: color-mix(in srgb, var(--t-primary) 15%, transparent) !important;
+/* ── PORTAL THEME OVERRIDES (theme-aware, global) ─────────── */
+/* These fire when data-theme is set on <html> */
+[data-theme] [role="option"]:hover,
+[data-theme] [role="option"][data-highlighted],
+[data-theme] [data-radix-select-item]:hover,
+[data-theme] [data-radix-select-item][data-highlighted] {
+  background: color-mix(in srgb, var(--t-primary) 18%, transparent) !important;
+  color: white !important;
+}
+
+[data-theme] [data-radix-popover-content] .rdp-day_selected,
+[data-theme] [data-radix-popper-content-wrapper] .rdp-day_selected {
+  background: var(--t-primary) !important;
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--t-primary) 50%, transparent) !important;
+}
+
+[data-theme] [data-radix-popover-content] .rdp-day:hover:not(.rdp-day_selected):not(.rdp-day_disabled),
+[data-theme] [data-radix-popper-content-wrapper] .rdp-day:hover:not(.rdp-day_selected):not(.rdp-day_disabled) {
+  background: color-mix(in srgb, var(--t-primary) 18%, transparent) !important;
+}
+
+[data-theme] [data-radix-dropdown-menu-content] [role="menuitem"]:hover,
+[data-theme] [data-radix-dropdown-menu-content] [role="menuitem"]:focus {
+  background: color-mix(in srgb, var(--t-primary) 16%, transparent) !important;
 }
 
 /* H1 gradient (welcome) */
