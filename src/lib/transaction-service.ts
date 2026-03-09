@@ -147,15 +147,29 @@ export async function finalizeTransaction(
   db: Firestore,
   auth: Auth,
   assessment: Assessment,
-): Promise<void> {
-  const uid = await ensureAuth(auth);
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Ensure we always have a valid string ID — Firestore requires a non-empty string
+    if (!assessment.id) {
+      assessment.id = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `id_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    }
 
-  await Promise.all([
-    writeAssessment(db, uid, assessment),
-    writeTransaction(db, assessment),
-    writeClient(db, uid, assessment),
-    writeVehicle(db, assessment),
-    writeTowing(db, uid, assessment),
-    writeReport(db, assessment),
-  ]);
+    const uid = await ensureAuth(auth);
+
+    await Promise.all([
+      writeAssessment(db, uid, assessment),
+      writeTransaction(db, assessment),
+      writeClient(db, uid, assessment),
+      writeVehicle(db, assessment),
+      writeTowing(db, uid, assessment),
+      writeReport(db, assessment),
+    ]);
+
+    return { success: true };
+  } catch (e: any) {
+    console.error('[finalizeTransaction] error:', e);
+    return { success: false, error: e?.message ?? String(e) };
+  }
 }

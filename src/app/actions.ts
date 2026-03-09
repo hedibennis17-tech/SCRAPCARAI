@@ -236,17 +236,29 @@ function buildHtmlBody(assessment: Assessment, lang: 'en' | 'fr'): string {
 }
 
 
-const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT!, 10),
-    secure: (process.env.SMTP_PORT === '465'),
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-    },
-});
+function createTransporter() {
+    const host = process.env.SMTP_HOST;
+    const user = process.env.SMTP_USER;
+    const pass = process.env.SMTP_PASS;
+    const port = parseInt(process.env.SMTP_PORT ?? '587', 10);
+
+    if (!host || !user || !pass) {
+        console.warn('[email] SMTP not configured — missing SMTP_HOST, SMTP_USER or SMTP_PASS in env vars');
+        return null;
+    }
+    return nodemailer.createTransport({
+        host,
+        port,
+        secure: port === 465,
+        auth: { user, pass },
+    });
+}
 
 async function sendEmail(mailOptions: nodemailer.SendMailOptions) {
+    const transporter = createTransporter();
+    if (!transporter) {
+        return { success: false, error: 'SMTP not configured (add SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_PORT to Vercel env vars)' };
+    }
     try {
         const info = await transporter.sendMail(mailOptions);
         console.log('✅ Email sent:', info.messageId);

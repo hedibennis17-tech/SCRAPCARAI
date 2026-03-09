@@ -157,7 +157,10 @@
 .font-headline,
 .saas-bg h1,
 .saas-bg h2,
-.saas-bg h3 {
+.saas-bg h3,
+.saas-bg h4,
+.saas-bg h5,
+.saas-bg h6 {
   font-family: 'Syne', sans-serif !important;
   letter-spacing: -0.025em !important;
 }
@@ -183,14 +186,45 @@
   color: rgba(255,255,255,0.92) !important;
 }
 
+/* h4, h5, h6 — section titles inside steps */
+.saas-bg h4 {
+  font-weight: 700 !important;
+  color: rgba(255,255,255,0.90) !important;
+}
+
+.saas-bg h5,
+.saas-bg h6 {
+  font-weight: 600 !important;
+  color: rgba(255,255,255,0.85) !important;
+}
+
+/* All plain text in wizard steps must be white — not dark */
 .saas-bg p {
-  color: rgba(255,255,255,0.58) !important;
+  color: rgba(255,255,255,0.68) !important;
   line-height: 1.65 !important;
   font-size: 0.9rem !important;
 }
 
+/* Card titles — these render as div not h*, need explicit color */
+.saas-bg [class*="CardTitle"],
+.saas-bg .card-title,
+.saas-bg [class*="font-semibold"]:not(.text-destructive):not(.text-primary):not(.text-muted-foreground):not(button):not([class*="badge"]) {
+  color: rgba(255,255,255,0.92) !important;
+}
+
+/* font-mono reference numbers */
+.saas-bg .font-mono {
+  color: rgba(255,255,255,0.88) !important;
+}
+
+/* Spans inside cards that carry section labels */
+.saas-bg span.font-semibold,
+.saas-bg span.font-bold {
+  color: rgba(255,255,255,0.92) !important;
+}
+
 .saas-bg label {
-  color: rgba(255,255,255,0.72) !important;
+  color: rgba(255,255,255,0.80) !important;
   font-size: 0.82rem !important;
   font-weight: 500 !important;
   letter-spacing: 0.01em !important;
