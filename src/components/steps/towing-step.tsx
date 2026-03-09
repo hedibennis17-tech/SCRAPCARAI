@@ -16,6 +16,7 @@ import { countries } from '@/lib/locations';
 import { useState, useEffect, useCallback } from 'react';
 import { ScrollArea } from '../ui/scroll-area';
 import { GooglePlacesAutocomplete } from '@/components/ui/google-places-autocomplete';
+import { calculateTowingDistance } from '@/lib/distance-client';
 
 // ─── Vendor address (configurable per scrapper) ───────────────────────────────
 const VENDOR_ADDRESS = '1547 rue Trépanier, Laval, QC H7W 3G5, Canada';
@@ -129,6 +130,7 @@ export function TowingStep({ onNext, onBack, data, lang }: TowingStepProps) {
   const [provinces, setProvinces] = useState<{name: string; code: string}[]>([]);
 
   // ── Calculate distance from VENDOR_ADDRESS to client address ────────────────
+  // ── Calculate distance using Google Maps JS (client-side, no server proxy) ──
   const calculateDistance = useCallback(async (destination: string) => {
     if (!destination || destination.trim().length < 5) return;
     setDistanceLoading(true);
@@ -136,21 +138,11 @@ export function TowingStep({ onNext, onBack, data, lang }: TowingStepProps) {
     setDistanceText(null);
     setDurationText(null);
     try {
-      const res = await fetch('/api/distance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ origin: VENDOR_ADDRESS, destination }),
-      });
-      const json = await res.json();
-      if (json.ok) {
-        setDistanceText(json.distanceText);
-        setDurationText(json.durationText);
-        // Save into form so it flows to onNext
-        form.setValue('towingDistance' as any, json.distanceText);
-        form.setValue('towingDuration'  as any, json.durationText);
-      } else {
-        setDistanceError(true);
-      }
+      const result = await calculateTowingDistance(destination);
+      setDistanceText(result.distanceText);
+      setDurationText(result.durationText);
+      form.setValue('towingDistance' as any, result.distanceText);
+      form.setValue('towingDuration'  as any, result.durationText);
     } catch {
       setDistanceError(true);
     } finally {
@@ -351,7 +343,7 @@ export function TowingStep({ onNext, onBack, data, lang }: TowingStepProps) {
                   <FormField control={ctrl} name="alternateAddress.country" render={({ field }) => (
                     <FormItem>
                       <FormLabel>{c.countryLabel}</FormLabel>
-                      <Select onValueChange={handleCountryChange} defaultValue={field.value}>
+                      <Select onValueChange={handleCountryChange} value={field.value ?? ""}>
                         <FormControl><SelectTrigger><SelectValue placeholder={c.countryPlaceholder} /></SelectTrigger></FormControl>
                         <SelectContent>
                           {countries.map(c => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}
@@ -390,7 +382,7 @@ export function TowingStep({ onNext, onBack, data, lang }: TowingStepProps) {
             <FormField control={ctrl} name="parkingLocation" render={({ field }) => (
               <FormItem>
                 <FormLabel>{c.parkingLocationLabel}</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value ?? ""}>
                   <FormControl><SelectTrigger><SelectValue placeholder={c.parkingLocationPlaceholder} /></SelectTrigger></FormControl>
                   <SelectContent>
                     {c.parkingLocations.map(loc => <SelectItem key={loc} value={loc}>{loc}</SelectItem>)}
