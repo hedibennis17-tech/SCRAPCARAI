@@ -4,7 +4,7 @@ export async function POST(request: Request) {
   try {
     const { origin, destination } = await request.json();
 
-    const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyBhbVgnBgOA0qi7-a95Ol7G5BTlfIqa50s';
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyDHZkzDCSJXxltAnvWeSeC9wLylN93G3S0';
 
     const url = `https://maps.googleapis.com/maps/api/distancematrix/json?` +
       `origins=${encodeURIComponent(origin)}` +

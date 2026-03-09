@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyBhbVgnBgOA0qi7-a95Ol7G5BTlfIqa50s';
+const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyDHZkzDCSJXxltAnvWeSeC9wLylN93G3S0';
 
 // Load Google Maps script once globally
 let scriptLoaded = false;
