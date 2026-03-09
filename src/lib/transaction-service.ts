@@ -52,18 +52,25 @@ async function writeAssessment(db: Firestore, uid: string, a: Assessment) {
 async function writeTransaction(db: Firestore, a: Assessment) {
   await setDoc(doc(db, 'transactions', a.id!), {
     assessmentId: a.id,
+    // PO/DO — used by Dossiers page
     purchaseOrder: a.summary?.purchaseOrder ?? null,
     deliveryOrder: a.summary?.deliveryOrder ?? null,
     status: 'confirmed',
-    clientName: a.client?.name ?? null,
-    clientEmail: a.client?.email ?? null,
-    clientPhone: a.client?.phone ?? null,
+    // Client — used by Dossiers page
+    clientName:    a.client?.name    ?? null,
+    clientEmail:   a.client?.email   ?? null,
+    clientPhone:   a.client?.phone   ?? null,
     clientAddress: `${a.client?.address ?? ''}, ${a.client?.city ?? ''}, ${a.client?.province ?? ''}`,
-    vehicleYear: a.vehicle?.year ?? null,
-    vehicleMake: a.vehicle?.make ?? null,
-    vehicleModel: a.vehicle?.model ?? null,
-    vehiclePlate: a.vehicle?.licensePlate ?? null,
-    offerAmount: a.valuation?.finalOffer ?? null,
+    // Vehicle — used by Dossiers page (reads vehicleYear/Make/Model/Vin/Mileage)
+    vehicleYear:    a.vehicle?.year         ?? null,
+    vehicleMake:    a.vehicle?.make         ?? null,
+    vehicleModel:   a.vehicle?.model        ?? null,
+    vehiclePlate:   a.vehicle?.licensePlate ?? null,
+    vehicleVin:     a.vehicle?.vin          ?? null,
+    vehicleMileage: a.vehicle?.mileage      ?? null,
+    // Offer — Dossiers page reads `finalPrice`, also store as offerAmount
+    finalPrice:  a.valuation?.finalPrice ?? null,
+    offerAmount: a.valuation?.finalPrice ?? null,
     towingDistance: (a.towing as any)?.towingDistance ?? null,
     towingDuration: (a.towing as any)?.towingDuration ?? null,
     createdAt: serverTimestamp(),
@@ -107,22 +114,45 @@ async function writeVehicle(db: Firestore, a: Assessment) {
 // ── Write to towing_dispatches ───────────────────────────────────────────────
 async function writeTowing(db: Firestore, uid: string, a: Assessment) {
   const pickupAddress = getPickupAddress(a);
+  const rawDate = (a.towing as any)?.pickupDate ?? null;
+
+  // Normalize pickupDate to a plain ISO string so admin pages can parse it
+  let pickupDate: string | null = null;
+  if (rawDate) {
+    if (typeof rawDate === 'string') pickupDate = rawDate;
+    else if (rawDate?.seconds) pickupDate = new Date(rawDate.seconds * 1000).toISOString();
+    else if (rawDate instanceof Date) pickupDate = rawDate.toISOString();
+  }
+
   await setDoc(doc(db, 'towing_dispatches', a.id!), {
     assessmentId: a.id,
     userId: uid,
     status: 'pending',
-    clientName: a.client?.name ?? null,
+    // Client
+    clientName:  a.client?.name  ?? null,
     clientPhone: a.client?.phone ?? null,
+    // PO — shown in towing dispatch table
+    purchaseOrder: a.summary?.purchaseOrder ?? null,
+    deliveryOrder: a.summary?.deliveryOrder ?? null,
+    // Vehicle — towing page reads `vehicleSummary` (combined) + individual fields
+    vehicleSummary: a.vehicle
+      ? `${a.vehicle.year ?? ''} ${a.vehicle.make ?? ''} ${a.vehicle.model ?? ''}`.trim()
+      : null,
+    vehicleYear:  a.vehicle?.year         ?? null,
+    vehicleMake:  a.vehicle?.make         ?? null,
+    vehicleModel: a.vehicle?.model        ?? null,
+    vehiclePlate: a.vehicle?.licensePlate ?? null,
+    // Address
     pickupAddress,
     vendorAddress: '1547 rue Trépanier, Laval, QC H7W 3G5, Canada',
+    // Distance — from client-side Maps calculation
     towingDistance: (a.towing as any)?.towingDistance ?? null,
     towingDuration: (a.towing as any)?.towingDuration ?? null,
-    vehicleYear: a.vehicle?.year ?? null,
-    vehicleMake: a.vehicle?.make ?? null,
-    vehicleModel: a.vehicle?.model ?? null,
-    vehiclePlate: a.vehicle?.licensePlate ?? null,
+    // Scheduling — towing page reads `pickupDate` + `pickupTimeSlot`
+    pickupDate,
+    scheduledDate:   pickupDate,
+    pickupTimeSlot:  (a.towing as any)?.pickupTimeSlot ?? null,
     parkingLocation: (a.towing as any)?.parkingLocation ?? null,
-    scheduledDate: (a.towing as any)?.pickupDate ?? null,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }, { merge: true });

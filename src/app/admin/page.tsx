@@ -118,13 +118,22 @@ export default function AdminDashboard() {
                       <div className="admin-table-sub">{a.vehicle?.year}</div>
                     </td>
                     <td className="admin-table-price">
-                      {a.valuation?.finalPrice ? `$${a.valuation.finalPrice.toFixed(0)}` : '—'}
+                      {(() => {
+                        const price = a.valuation?.finalPrice ?? (a.valuation as any)?.finalOffer;
+                        return price ? `$${Number(price).toFixed(0)}` : '—';
+                      })()}
                     </td>
                     <td className="hidden md:table-cell admin-table-sub">
                       {a.createdAt?.seconds ? new Date(a.createdAt.seconds * 1000).toLocaleDateString('fr-CA') : '—'}
                     </td>
                     <td className="hidden md:table-cell admin-table-sub">
-                      {a.towing?.pickupDate ? new Date(a.towing.pickupDate).toLocaleDateString('fr-CA') : '—'}
+                      {(() => {
+                        const pd = (a.towing as any)?.pickupDate;
+                        if (!pd) return '—';
+                        if (pd?.seconds) return new Date(pd.seconds * 1000).toLocaleDateString('fr-CA');
+                        const d = new Date(pd);
+                        return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('fr-CA');
+                      })()}
                     </td>
                     <td>
                       <span className={`admin-badge ${a.summary?.purchaseOrder ? 'success' : 'warning'}`}>
