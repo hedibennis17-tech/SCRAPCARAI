@@ -60,6 +60,8 @@ function buildHtmlBody(assessment: Assessment, lang: 'en' | 'fr'): string {
             pickupDate: "Pickup Date",
             timeSlot: "Time Slot",
             parking: "Parking",
+            towingDistance: "Towing Distance",
+            towingDuration: "Estimated Travel Time",
             allWheels: "All Wheels",
             flatTires: "Flat Tires",
             blocked: "Vehicle Blocked",
@@ -103,6 +105,8 @@ function buildHtmlBody(assessment: Assessment, lang: 'en' | 'fr'): string {
             pickupDate: "Date de cueillette",
             timeSlot: "Plage horaire",
             parking: "Stationnement",
+            towingDistance: "Distance de remorquage",
+            towingDuration: "Temps de trajet estimé",
             allWheels: "Toutes les roues",
             flatTires: "Pneus crevés",
             blocked: "Véhicule bloqué",
@@ -199,6 +203,8 @@ function buildHtmlBody(assessment: Assessment, lang: 'en' | 'fr'): string {
             <p><strong>${t.pickupDate}:</strong> ${tow.pickupDate ? new Date(tow.pickupDate).toLocaleDateString() : 'N/A'}</p>
             <p><strong>${t.timeSlot}:</strong> ${escapeText(tow.pickupTimeSlot)}</p>
             <p><strong>${t.parking}:</strong> ${escapeText(tow.parkingLocation)}</p>
+            <p><strong>${t.towingDistance}:</strong> ${escapeText((tow as any).towingDistance) || 'N/A'}</p>
+            <p><strong>${t.towingDuration}:</strong> ${escapeText((tow as any).towingDuration) || 'N/A'}</p>
             <p><strong>${t.allWheels}:</strong> ${tow.allWheels ? t.yes : t.no}</p>
             <p><strong>${t.flatTires}:</strong> ${tow.flatTires ? t.yes : t.no}</p>
             <p><strong>${t.blocked}:</strong> ${tow.blocked ? t.yes : t.no}</p>

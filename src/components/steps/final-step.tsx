@@ -92,6 +92,8 @@ function buildPdf(a: Assessment, orderType: 'PO' | 'DO'): jsPDF {
       ['Date', towing?.pickupDate ? new Date(towing.pickupDate).toLocaleDateString('fr-CA') : 'N/A'],
       ['Plage horaire', towing?.pickupTimeSlot ?? 'N/A'],
       ['Stationnement', towing?.parkingLocation ?? 'N/A'],
+      ['Distance', (towing as any)?.towingDistance ?? 'N/A'],
+      ['Temps trajet estimé', (towing as any)?.towingDuration ?? 'N/A'],
       ['Toutes roues', towing?.allWheels ? 'Oui' : 'Non'],
       ['Pneus crevés', towing?.flatTires ? 'Oui' : 'Non'],
       ['Bloqué', towing?.blocked ? 'Oui' : 'Non'],

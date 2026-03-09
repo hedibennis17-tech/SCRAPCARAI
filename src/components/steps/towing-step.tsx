@@ -1,8 +1,7 @@
-
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, ArrowRight, Home } from 'lucide-react';
+import { ArrowLeft, ArrowRight, MapPin, Loader2, Clock, Ruler } from 'lucide-react';
 import type { Assessment } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -13,11 +12,13 @@ import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Separator } from '../ui/separator';
-import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { countries } from '@/lib/locations';
 import { useState, useEffect, useCallback } from 'react';
 import { ScrollArea } from '../ui/scroll-area';
 import { GooglePlacesAutocomplete } from '@/components/ui/google-places-autocomplete';
+
+// ─── Vendor address (configurable per scrapper) ───────────────────────────────
+const VENDOR_ADDRESS = '1547 rue Trépanier, Laval, QC H7W 3G5, Canada';
 
 type TowingStepProps = {
   onNext: (data: { towing: TowingDetailsData }) => void;
@@ -28,8 +29,13 @@ type TowingStepProps = {
 
 const content = {
     en: {
-        assignedYard: "Assigned Yard",
-        assignedYardDesc: "Your vehicle will be assigned to our <strong>{yard_name}</strong> location.",
+        distanceTitle: "Towing Distance",
+        distanceFrom: "From our location",
+        distanceTo: "To your vehicle",
+        distanceKm: "Distance",
+        distanceDuration: "Estimated travel time",
+        distanceLoading: "Calculating distance…",
+        distanceError: "Distance unavailable",
         sameAddressLabel: "Is the car parked at the address you provided ({address})?",
         yes: "Yes",
         no: "No",
@@ -56,8 +62,13 @@ const content = {
         nextButton: "Next",
     },
     fr: {
-        assignedYard: "Cour assignée",
-        assignedYardDesc: "Votre véhicule sera assigné à notre cour de <strong>{yard_name}</strong>.",
+        distanceTitle: "Distance de remorquage",
+        distanceFrom: "De notre établissement",
+        distanceTo: "Jusqu'à votre véhicule",
+        distanceKm: "Distance",
+        distanceDuration: "Temps de trajet estimé",
+        distanceLoading: "Calcul de la distance…",
+        distanceError: "Distance non disponible",
         sameAddressLabel: "La voiture est-elle stationnée à l'adresse fournie ({address}) ?",
         yes: "Oui",
         no: "Non",
@@ -83,10 +94,18 @@ const content = {
         backButton: "Retour",
         nextButton: "Suivant",
     }
-}
+};
 
 export function TowingStep({ onNext, onBack, data, lang }: TowingStepProps) {
   const c = content[lang];
+
+  // ── Distance state ──────────────────────────────────────────────────────────
+  const [distanceText,  setDistanceText]  = useState<string | null>(null);
+  const [durationText,  setDurationText]  = useState<string | null>(null);
+  const [distanceLoading, setDistanceLoading] = useState(false);
+  const [distanceError,   setDistanceError]   = useState(false);
+
+  // ── Form ────────────────────────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const form = useForm<TowingDetailsData>({
     resolver: zodResolver(towingDetailsSchema(lang)),
@@ -99,34 +118,58 @@ export function TowingStep({ onNext, onBack, data, lang }: TowingStepProps) {
       blocked: false,
       hasKeys: true,
     },
-     mode: "onChange"
+    mode: "onChange"
   });
-  
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ctrl = form.control as any;
-
-  const onSubmit = (values: TowingDetailsData) => {
-    onNext({ towing: values });
-  };
 
   const sameAddress = form.watch('sameAddress');
   const selectedCountryCode = form.watch('alternateAddress.country');
   const [provinces, setProvinces] = useState<{name: string; code: string}[]>([]);
 
-  useEffect(() => {
-    if (sameAddress === 'no') {
-      const country = countries.find(c => c.code === selectedCountryCode);
-      if (country) {
-          setProvinces(country.provinces || country.states || []);
+  // ── Calculate distance from VENDOR_ADDRESS to client address ────────────────
+  const calculateDistance = useCallback(async (destination: string) => {
+    if (!destination || destination.trim().length < 5) return;
+    setDistanceLoading(true);
+    setDistanceError(false);
+    setDistanceText(null);
+    setDurationText(null);
+    try {
+      const res = await fetch('/api/distance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ origin: VENDOR_ADDRESS, destination }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setDistanceText(json.distanceText);
+        setDurationText(json.durationText);
+        // Save into form so it flows to onNext
+        form.setValue('towingDistance' as any, json.distanceText);
+        form.setValue('towingDuration'  as any, json.durationText);
+      } else {
+        setDistanceError(true);
       }
+    } catch {
+      setDistanceError(true);
+    } finally {
+      setDistanceLoading(false);
     }
-  }, [selectedCountryCode, sameAddress]);
+  }, [form]);
 
-  const handleCountryChange = (value: string) => {
-    form.setValue('alternateAddress.country', value as 'CA' | 'US');
-    form.setValue('alternateAddress.province', '');
-  };
+  // Calculate on mount using client address from previous step
+  useEffect(() => {
+    const clientAddr = data.client
+      ? `${data.client.address ?? ''}, ${data.client.city ?? ''}, ${data.client.province ?? ''}, ${data.client.postalCode ?? ''}`
+      : '';
+    if (clientAddr.trim().length > 5) {
+      calculateDistance(clientAddr);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // Recalculate when alternate address is confirmed
   const handleAlternateAddressSelect = useCallback((components: {
     streetNumber?: string;
     route?: string;
@@ -136,12 +179,8 @@ export function TowingStep({ onNext, onBack, data, lang }: TowingStepProps) {
     postalCode?: string;
     fullAddress?: string;
   }) => {
-    if (components.city) {
-      form.setValue('alternateAddress.city', components.city, { shouldValidate: true });
-    }
-    if (components.postalCode) {
-      form.setValue('alternateAddress.postalCode', components.postalCode, { shouldValidate: true });
-    }
+    if (components.city) form.setValue('alternateAddress.city', components.city, { shouldValidate: true });
+    if (components.postalCode) form.setValue('alternateAddress.postalCode', components.postalCode, { shouldValidate: true });
     if (components.country) {
       const countryCode = components.country as 'CA' | 'US';
       form.setValue('alternateAddress.country', countryCode, { shouldValidate: true });
@@ -150,157 +189,251 @@ export function TowingStep({ onNext, onBack, data, lang }: TowingStepProps) {
         const newProvinces = countryData.provinces || countryData.states || [];
         setProvinces(newProvinces);
         if (components.province) {
-          const matchedProvince = newProvinces.find(
+          const matched = newProvinces.find(
             p => p.name.toLowerCase() === components.province!.toLowerCase() ||
                  p.code.toLowerCase() === components.province!.toLowerCase()
           );
-          if (matchedProvince) {
-            form.setValue('alternateAddress.province', matchedProvince.name, { shouldValidate: true });
-          }
+          if (matched) form.setValue('alternateAddress.province', matched.name, { shouldValidate: true });
         }
       }
     }
-  }, [form]);
+    // Recalculate distance with full alternate address
+    if (components.fullAddress) {
+      calculateDistance(components.fullAddress);
+    }
+  }, [form, calculateDistance]);
+
+  useEffect(() => {
+    if (sameAddress === 'no') {
+      const country = countries.find(c => c.code === selectedCountryCode);
+      if (country) setProvinces(country.provinces || country.states || []);
+    }
+  }, [selectedCountryCode, sameAddress]);
+
+  // When switching back to "yes", recalculate with client address
+  useEffect(() => {
+    if (sameAddress === 'yes') {
+      const clientAddr = data.client
+        ? `${data.client.address ?? ''}, ${data.client.city ?? ''}, ${data.client.province ?? ''}`
+        : '';
+      if (clientAddr.trim().length > 5) calculateDistance(clientAddr);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sameAddress]);
+
+  const handleCountryChange = (value: string) => {
+    form.setValue('alternateAddress.country', value as 'CA' | 'US');
+    form.setValue('alternateAddress.province', '');
+  };
+
+  const onSubmit = (values: TowingDetailsData) => {
+    // Inject distance into values before passing up
+    const enriched = {
+      ...values,
+      towingDistance: distanceText ?? undefined,
+      towingDuration:  durationText  ?? undefined,
+    };
+    onNext({ towing: enriched as TowingDetailsData });
+  };
 
   return (
     <div className="h-full flex flex-col p-6 overflow-y-auto">
-      {data.yard && data.yard.yard_name !== "Aucune fourrière trouvée" && (
-        <Alert className="mb-6">
-          <Home className="h-4 w-4" />
-          <AlertTitle>{c.assignedYard}</AlertTitle>
-          <AlertDescription dangerouslySetInnerHTML={{ __html: c.assignedYardDesc.replace('{yard_name}', data.yard.yard_name) }} />
-        </Alert>
-      )}
-      
+
+      {/* ── Distance Block ─────────────────────────────────────────────────── */}
+      <div className="mb-6 rounded-xl border bg-card p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-3">
+          <MapPin className="h-5 w-5 text-primary" />
+          <h3 className="font-semibold text-sm">{c.distanceTitle}</h3>
+        </div>
+
+        {distanceLoading && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            <span>{c.distanceLoading}</span>
+          </div>
+        )}
+
+        {!distanceLoading && distanceError && (
+          <p className="text-sm text-muted-foreground">{c.distanceError}</p>
+        )}
+
+        {!distanceLoading && !distanceError && distanceText && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* FROM */}
+            <div className="flex flex-col gap-0.5 rounded-lg bg-muted/40 px-3 py-2">
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">{c.distanceFrom}</span>
+              <span className="text-xs text-foreground/80">{VENDOR_ADDRESS}</span>
+            </div>
+            {/* TO */}
+            <div className="flex flex-col gap-0.5 rounded-lg bg-muted/40 px-3 py-2">
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">{c.distanceTo}</span>
+              <span className="text-xs text-foreground/80">
+                {data.client?.address}, {data.client?.city}
+              </span>
+            </div>
+            {/* KM */}
+            <div className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2">
+              <Ruler className="h-4 w-4 text-primary shrink-0" />
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">{c.distanceKm}</p>
+                <p className="font-bold text-primary text-base">{distanceText}</p>
+              </div>
+            </div>
+            {/* DURATION */}
+            <div className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2">
+              <Clock className="h-4 w-4 text-primary shrink-0" />
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">{c.distanceDuration}</p>
+                <p className="font-bold text-primary text-base">{durationText}</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Form ───────────────────────────────────────────────────────────── */}
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 flex-grow flex flex-col">
-          
-            <div className="space-y-6">
-              <FormField
-                control={ctrl}
-                name="sameAddress"
-                render={({ field }) => (
-                  <FormItem className="space-y-3 rounded-lg border p-4">
-                    <FormLabel>{c.sameAddressLabel.replace('{address}', data.client?.address || '')}</FormLabel>
+          <div className="space-y-6">
+
+            {/* Same address? */}
+            <FormField
+              control={ctrl}
+              name="sameAddress"
+              render={({ field }) => (
+                <FormItem className="space-y-3 rounded-lg border p-4">
+                  <FormLabel>{c.sameAddressLabel.replace('{address}', data.client?.address || '')}</FormLabel>
+                  <FormControl>
+                    <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex gap-4">
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl><RadioGroupItem value="yes" /></FormControl>
+                        <FormLabel className="font-normal">{c.yes}</FormLabel>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl><RadioGroupItem value="no" /></FormControl>
+                        <FormLabel className="font-normal">{c.no}</FormLabel>
+                      </FormItem>
+                    </RadioGroup>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Alternate address */}
+            {sameAddress === 'no' && (
+              <div className="space-y-4 rounded-lg border p-4">
+                <h4 className="font-medium">{c.alternateAddressTitle}</h4>
+                <FormField control={ctrl} name="alternateAddress.street" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{c.streetLabel}</FormLabel>
                     <FormControl>
-                      <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex gap-4">
-                        <FormItem className="flex items-center space-x-3 space-y-0">
-                          <FormControl><RadioGroupItem value="yes" /></FormControl>
-                          <FormLabel className="font-normal">{c.yes}</FormLabel>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-3 space-y-0">
-                          <FormControl><RadioGroupItem value="no" /></FormControl>
-                          <FormLabel className="font-normal">{c.no}</FormLabel>
-                        </FormItem>
-                      </RadioGroup>
+                      <GooglePlacesAutocomplete
+                        value={field.value}
+                        onChange={field.onChange}
+                        onAddressSelect={handleAlternateAddressSelect}
+                        placeholder={c.streetPlaceholder}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
-                )}
-              />
-
-              {sameAddress === 'no' && (
-                <div className="space-y-4 rounded-lg border p-4">
-                    <h4 className="font-medium">{c.alternateAddressTitle}</h4>
-                    <FormField control={ctrl} name="alternateAddress.street" render={({ field }) => ( <FormItem><FormLabel>{c.streetLabel}</FormLabel><FormControl><GooglePlacesAutocomplete value={field.value} onChange={field.onChange} onAddressSelect={handleAlternateAddressSelect} placeholder={c.streetPlaceholder} /></FormControl><FormMessage /></FormItem>)} />
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField
-                            control={ctrl}
-                            name="alternateAddress.country"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>{c.countryLabel}</FormLabel>
-                                <Select onValueChange={handleCountryChange} defaultValue={field.value}>
-                                    <FormControl>
-                                        <SelectTrigger><SelectValue placeholder={c.countryPlaceholder} /></SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                        {countries.map(c => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={ctrl}
-                            name="alternateAddress.province"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>{c.provinceLabel}</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value} disabled={!selectedCountryCode}>
-                                <FormControl>
-                                    <SelectTrigger><SelectValue placeholder={c.provincePlaceholder} /></SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    <ScrollArea className="h-72">
-                                        {provinces.map(p => <SelectItem key={p.code} value={p.name}>{p.name}</SelectItem>)}
-                                    </ScrollArea>
-                                </SelectContent>
-                                </Select>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField control={ctrl} name="alternateAddress.city" render={({ field }) => ( <FormItem><FormLabel>{c.cityLabel}</FormLabel><FormControl><Input placeholder={c.cityPlaceholder} {...field} /></FormControl><FormMessage /></FormItem>)} />
-                      <FormField control={ctrl} name="alternateAddress.postalCode" render={({ field }) => ( <FormItem><FormLabel>{c.postalCodeLabel}</FormLabel><FormControl><Input placeholder={c.postalCodePlaceholder} {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    </div>
+                )} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField control={ctrl} name="alternateAddress.country" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{c.countryLabel}</FormLabel>
+                      <Select onValueChange={handleCountryChange} defaultValue={field.value}>
+                        <FormControl><SelectTrigger><SelectValue placeholder={c.countryPlaceholder} /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          {countries.map(c => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={ctrl} name="alternateAddress.province" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{c.provinceLabel}</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={!selectedCountryCode}>
+                        <FormControl><SelectTrigger><SelectValue placeholder={c.provincePlaceholder} /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          <ScrollArea className="h-72">
+                            {provinces.map(p => <SelectItem key={p.code} value={p.name}>{p.name}</SelectItem>)}
+                          </ScrollArea>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
                 </div>
-              )}
-              
-              <FormField
-                control={ctrl}
-                name="parkingLocation"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{c.parkingLocationLabel}</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger><SelectValue placeholder={c.parkingLocationPlaceholder} /></SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {c.parkingLocations.map(loc => <SelectItem key={loc} value={loc}>{loc}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <div className="space-y-3 rounded-lg border p-4">
-                 <FormLabel>{c.accessibilityLabel}</FormLabel>
-                 <FormField control={ctrl} name="allWheels" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between"><FormDescription>{c.allWheelsLabel}</FormDescription><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)}/>
-                 <Separator/>
-                 <FormField control={ctrl} name="flatTires" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between"><FormDescription>{c.flatTiresLabel}</FormDescription><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)}/>
-                 <Separator/>
-                 <FormField control={ctrl} name="blocked" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between"><FormDescription>{c.blockedLabel}</FormDescription><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)}/>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={ctrl} name="alternateAddress.city" render={({ field }) => (
+                    <FormItem><FormLabel>{c.cityLabel}</FormLabel><FormControl><Input placeholder={c.cityPlaceholder} {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={ctrl} name="alternateAddress.postalCode" render={({ field }) => (
+                    <FormItem><FormLabel>{c.postalCodeLabel}</FormLabel><FormControl><Input placeholder={c.postalCodePlaceholder} {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                </div>
               </div>
+            )}
 
-              <FormField
-                control={ctrl}
-                name="hasKeys"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-0.5">
-                      <FormLabel>{c.keysLabel}</FormLabel>
-                    </div>
-                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                  </FormItem>
-                )}
-              />
+            {/* Parking location */}
+            <FormField control={ctrl} name="parkingLocation" render={({ field }) => (
+              <FormItem>
+                <FormLabel>{c.parkingLocationLabel}</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl><SelectTrigger><SelectValue placeholder={c.parkingLocationPlaceholder} /></SelectTrigger></FormControl>
+                  <SelectContent>
+                    {c.parkingLocations.map(loc => <SelectItem key={loc} value={loc}>{loc}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )} />
 
+            {/* Accessibility */}
+            <div className="space-y-3 rounded-lg border p-4">
+              <FormLabel>{c.accessibilityLabel}</FormLabel>
+              <FormField control={ctrl} name="allWheels" render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between">
+                  <FormDescription>{c.allWheelsLabel}</FormDescription>
+                  <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                </FormItem>
+              )} />
+              <Separator />
+              <FormField control={ctrl} name="flatTires" render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between">
+                  <FormDescription>{c.flatTiresLabel}</FormDescription>
+                  <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                </FormItem>
+              )} />
+              <Separator />
+              <FormField control={ctrl} name="blocked" render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between">
+                  <FormDescription>{c.blockedLabel}</FormDescription>
+                  <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                </FormItem>
+              )} />
             </div>
+
+            {/* Keys */}
+            <FormField control={ctrl} name="hasKeys" render={({ field }) => (
+              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <FormLabel>{c.keysLabel}</FormLabel>
+                </div>
+                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+              </FormItem>
+            )} />
+
+          </div>
 
           <div className="flex justify-between items-center pt-6 mt-auto">
             <Button type="button" variant="outline" onClick={onBack}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              {c.backButton}
+              <ArrowLeft className="mr-2 h-4 w-4" />{c.backButton}
             </Button>
             <Button type="submit">
-              {c.nextButton}
-              <ArrowRight className="ml-2 h-4 w-4" />
+              {c.nextButton}<ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
         </form>

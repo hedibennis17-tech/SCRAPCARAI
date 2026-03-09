@@ -250,6 +250,8 @@ const baseTowingSchema = (lang: 'en' | 'fr' = 'en') => z.object({
   flatTires: z.boolean(),
   blocked: z.boolean(),
   hasKeys: z.boolean(),
+  towingDistance: z.string().optional(),   // ex: "24,5 km"
+  towingDuration: z.string().optional(),   // ex: "28 minutes"
 });
 
 export const towingDetailsSchema = (lang: 'en' | 'fr' = 'en') => z.discriminatedUnion("sameAddress", [

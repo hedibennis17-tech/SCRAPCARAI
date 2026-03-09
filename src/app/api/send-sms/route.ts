@@ -40,10 +40,10 @@ export async function POST(request: Request) {
     const vehicle = v ? `${v.year} ${v.make} ${v.model}` : 'N/A';
 
     const clientMsg = lang === 'fr'
-      ? `✅ SCRAP CAR AI\n\nBonjour ${name},\n🚗 ${vehicle}\n💰 Offre: ${price}\n📅 Cueillette: ${pickupDate} (${t?.pickupTimeSlot ?? 'N/A'})\n📋 Réf: ${po}\n\nNotre chauffeur vous appellera 30-60 min avant l'arrivée. Merci!`
-      : `✅ SCRAP CAR AI\n\nHi ${name},\n🚗 ${vehicle}\n💰 Offer: ${price}\n📅 Pickup: ${pickupDate} (${t?.pickupTimeSlot ?? 'N/A'})\n📋 Ref: ${po}\n\nDriver will call 30-60 min before arrival. Thank you!`;
+      ? `✅ SCRAP CAR AI\n\nBonjour ${name},\n🚗 ${vehicle}\n💰 Offre: ${price}\n📅 Cueillette: ${pickupDate} (${t?.pickupTimeSlot ?? 'N/A'})\n📍 Distance: ${(t as any)?.towingDistance ?? 'N/A'} — ⏱ ${(t as any)?.towingDuration ?? 'N/A'}\n📋 Réf: ${po}\n\nNotre chauffeur vous appellera 30-60 min avant l'arrivée. Merci!`
+      : `✅ SCRAP CAR AI\n\nHi ${name},\n🚗 ${vehicle}\n💰 Offer: ${price}\n📅 Pickup: ${pickupDate} (${t?.pickupTimeSlot ?? 'N/A'})\n📍 Distance: ${(t as any)?.towingDistance ?? 'N/A'} — ⏱ ${(t as any)?.towingDuration ?? 'N/A'}\n📋 Ref: ${po}\n\nDriver will call 30-60 min before arrival. Thank you!`;
 
-    const adminMsg = `🔔 NEW SCRAP CAR AI SUBMISSION\nClient: ${name} ${clientPhone}\nVehicle: ${vehicle}\nOffer: ${price}\nPickup: ${pickupDate}\nRef: ${po}`;
+    const adminMsg = `🔔 NEW SCRAP CAR AI SUBMISSION\nClient: ${name} ${clientPhone}\nVehicle: ${vehicle}\nOffer: ${price}\nPickup: ${pickupDate}\n📍 Distance: ${(t as any)?.towingDistance ?? 'N/A'} (${(t as any)?.towingDuration ?? 'N/A'})\nRef: ${po}`;
 
     const sends: Promise<any>[] = [
       client.messages.create({ body: clientMsg, from: fromPhone, to: clientPhone }),

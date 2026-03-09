@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Loader2, Search } from 'lucide-react';
+import { Loader2, Search, MapPin, Clock } from 'lucide-react';
 import { useFirebase } from '@/firebase';
 import { useCollection } from 'react-firebase-hooks/firestore';
 import { collection, query, orderBy, updateDoc, doc } from 'firebase/firestore';
@@ -12,6 +12,16 @@ const STATUS_OPTIONS = [
   { value: 'completed',  label: 'Complété',    cls: 'success'  },
   { value: 'cancelled',  label: 'Annulé',      cls: 'danger'   },
 ];
+
+function formatPickupDate(val: any): string {
+  if (!val) return '—';
+  // Firestore Timestamp
+  if (val?.seconds) return new Date(val.seconds * 1000).toLocaleDateString('fr-CA');
+  // ISO string or Date-compatible
+  const d = new Date(val);
+  if (!isNaN(d.getTime())) return d.toLocaleDateString('fr-CA');
+  return String(val);
+}
 
 export default function AdminTowingPage() {
   const { firestore } = useFirebase();
@@ -30,8 +40,9 @@ export default function AdminTowingPage() {
     const s = search.toLowerCase();
     return dispatches.filter(d =>
       d.clientName?.toLowerCase().includes(s) ||
-      d.vehicleName?.toLowerCase().includes(s) ||
-      d.purchaseOrder?.toLowerCase().includes(s)
+      d.vehicleSummary?.toLowerCase().includes(s) ||
+      d.purchaseOrder?.toLowerCase().includes(s) ||
+      d.pickupAddress?.toLowerCase().includes(s)
     );
   }, [dispatches, search]);
 
@@ -66,8 +77,8 @@ export default function AdminTowingPage() {
               <tr>
                 <th>Client</th>
                 <th className="hidden sm:table-cell">Véhicule</th>
-                <th className="hidden md:table-cell">Adresse</th>
-                <th className="hidden md:table-cell">Date</th>
+                <th className="hidden md:table-cell">Adresse & Distance</th>
+                <th className="hidden md:table-cell">Date de ramassage</th>
                 <th>Statut</th>
               </tr>
             </thead>
@@ -82,13 +93,43 @@ export default function AdminTowingPage() {
                       {d.purchaseOrder && <div className="admin-table-sub">PO: {d.purchaseOrder}</div>}
                     </td>
                     <td className="hidden sm:table-cell">
-                      <div className="admin-table-name" style={{ fontSize: '0.8rem' }}>{d.vehicleName || '—'}</div>
+                      <div className="admin-table-name" style={{ fontSize: '0.8rem' }}>{d.vehicleSummary || '—'}</div>
                       <div className="admin-table-sub">{d.parkingLocation || ''}</div>
                     </td>
-                    <td className="hidden md:table-cell admin-table-sub">{d.pickupAddress || '—'}</td>
-                    <td className="hidden md:table-cell admin-table-sub">
-                      {d.pickupDate ? new Date(d.pickupDate).toLocaleDateString('fr-CA') : '—'}
-                      {d.pickupTimeSlot && <div>{d.pickupTimeSlot}</div>}
+                    <td className="hidden md:table-cell">
+                      <div className="admin-table-sub">{d.pickupAddress || '—'}</div>
+                      {(d.towingDistance || d.towingDuration) && (
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
+                          {d.towingDistance && (
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', gap: '3px',
+                              fontSize: '0.72rem', fontWeight: 600,
+                              background: 'var(--t-primary, #c0303f)', color: '#fff',
+                              borderRadius: '999px', padding: '2px 8px'
+                            }}>
+                              <MapPin size={10} /> {d.towingDistance}
+                            </span>
+                          )}
+                          {d.towingDuration && (
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', gap: '3px',
+                              fontSize: '0.72rem', fontWeight: 500,
+                              background: 'rgba(0,0,0,0.12)', color: 'var(--t-foreground)',
+                              borderRadius: '999px', padding: '2px 8px'
+                            }}>
+                              <Clock size={10} /> {d.towingDuration}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="hidden md:table-cell">
+                      <div className="admin-table-name" style={{ fontSize: '0.82rem' }}>
+                        {formatPickupDate(d.pickupDate)}
+                      </div>
+                      {d.pickupTimeSlot && (
+                        <div className="admin-table-sub">{d.pickupTimeSlot}</div>
+                      )}
                     </td>
                     <td>
                       <select
