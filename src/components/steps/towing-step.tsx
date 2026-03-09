@@ -158,11 +158,22 @@ export function TowingStep({ onNext, onBack, data, lang }: TowingStepProps) {
     }
   }, [form]);
 
+  // Build a clean full address string from client data
+  const buildClientAddress = () => {
+    if (!data.client) return '';
+    const parts = [
+      data.client.address,
+      data.client.city,
+      data.client.province,
+      data.client.postalCode,
+      data.client.country === 'CA' ? 'Canada' : 'USA',
+    ].filter(Boolean);
+    return parts.join(', ');
+  };
+
   // Calculate on mount using client address from previous step
   useEffect(() => {
-    const clientAddr = data.client
-      ? `${data.client.address ?? ''}, ${data.client.city ?? ''}, ${data.client.province ?? ''}, ${data.client.postalCode ?? ''}`
-      : '';
+    const clientAddr = buildClientAddress();
     if (clientAddr.trim().length > 5) {
       calculateDistance(clientAddr);
     }
@@ -213,9 +224,7 @@ export function TowingStep({ onNext, onBack, data, lang }: TowingStepProps) {
   // When switching back to "yes", recalculate with client address
   useEffect(() => {
     if (sameAddress === 'yes') {
-      const clientAddr = data.client
-        ? `${data.client.address ?? ''}, ${data.client.city ?? ''}, ${data.client.province ?? ''}`
-        : '';
+      const clientAddr = buildClientAddress();
       if (clientAddr.trim().length > 5) calculateDistance(clientAddr);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -268,7 +277,7 @@ export function TowingStep({ onNext, onBack, data, lang }: TowingStepProps) {
             <div className="flex flex-col gap-0.5 rounded-lg bg-muted/40 px-3 py-2">
               <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">{c.distanceTo}</span>
               <span className="text-xs text-foreground/80">
-                {data.client?.address}, {data.client?.city}
+                {buildClientAddress() || `${data.client?.address ?? ''}, ${data.client?.city ?? ''}`}
               </span>
             </div>
             {/* KM */}
