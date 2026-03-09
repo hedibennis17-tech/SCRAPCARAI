@@ -4,6 +4,12 @@ const GOOGLE_KEY = process.env.GOOGLE_MAPS_API_KEY
   || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY 
   || 'AIzaSyDHZkzDCSJXxltAnvWeSeC9wLylN93G3S0';
 
+// Headers needed so Google accepts server-side calls despite HTTP referrer restrictions
+const GOOGLE_HEADERS = {
+  'Referer': 'https://scrapcarai.vercel.app',
+  'X-Goog-Maps-API-Key': GOOGLE_KEY,
+};
+
 // ── Try Distance Matrix API (requires Distance Matrix API enabled) ─────────────
 async function tryDistanceMatrix(origin: string, destination: string) {
   const url = `https://maps.googleapis.com/maps/api/distancematrix/json?` +
@@ -11,7 +17,7 @@ async function tryDistanceMatrix(origin: string, destination: string) {
     `&destinations=${encodeURIComponent(destination)}` +
     `&units=metric&language=fr&key=${GOOGLE_KEY}`;
 
-  const res  = await fetch(url);
+  const res  = await fetch(url, { headers: GOOGLE_HEADERS });
   const data = await res.json();
 
   console.log('[distance] Matrix status:', data.status, '| element:', data.rows?.[0]?.elements?.[0]?.status);
@@ -33,7 +39,7 @@ async function tryDistanceMatrix(origin: string, destination: string) {
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
   const url = `https://maps.googleapis.com/maps/api/geocode/json?` +
     `address=${encodeURIComponent(address)}&key=${GOOGLE_KEY}`;
-  const res  = await fetch(url);
+  const res  = await fetch(url, { headers: GOOGLE_HEADERS });
   const data = await res.json();
   if (data.status !== 'OK' || !data.results?.length) return null;
   return data.results[0].geometry.location; // { lat, lng }
