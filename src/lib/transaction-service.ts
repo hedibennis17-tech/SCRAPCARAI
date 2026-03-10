@@ -130,6 +130,8 @@ async function writeVehicle(db: Firestore, a: Assessment) {
     // Condition
     condition:     a.condition ?? null,
     missingParts:  a.condition?.missingParts ?? null,
+    // Photos — Firebase Storage URLs (base64 data URIs filtered out)
+    photoUrls:     ((a.condition as any)?.photos ?? []).filter((p: string) => p && !p.startsWith('data:')),
     createdAt: serverTimestamp(),
   }, { merge: true });
 }

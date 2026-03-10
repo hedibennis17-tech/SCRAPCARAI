@@ -43,6 +43,7 @@ export default function MigratePage() {
           purchaseOrder: a.summary?.purchaseOrder ?? null,
           deliveryOrder: a.summary?.deliveryOrder ?? null,
           missingParts:  a.condition?.missingParts ?? [],
+          photoUrls:     (a.condition?.photos ?? []).filter((p: string) => p && !p.startsWith('data:')),
           condition:     a.condition ?? null,
           createdAt:     a.createdAt ?? new Date(),
         }, { merge: true });
