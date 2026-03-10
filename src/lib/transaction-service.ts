@@ -211,16 +211,30 @@ export async function finalizeTransaction(
 
     const uid = await ensureAuth(auth);
 
-    await Promise.all([
-      writeAssessment(db, uid, assessment),
-      writeTransaction(db, assessment),
-      writeClient(db, uid, assessment),
-      writeVehicle(db, assessment),
-      writeTowing(db, uid, assessment),
-      writeReport(db, assessment),
-    ]);
+    // Run each write independently — one failure cannot block the others
+    const errors: string[] = [];
 
-    return { success: true };
+    for (const [name, fn] of [
+      ['assessment',   () => writeAssessment(db, uid, assessment)],
+      ['transaction',  () => writeTransaction(db, assessment)],
+      ['client',       () => writeClient(db, uid, assessment)],
+      ['vehicle',      () => writeVehicle(db, assessment)],
+      ['towing',       () => writeTowing(db, uid, assessment)],
+      ['report',       () => writeReport(db, assessment)],
+    ] as [string, () => Promise<void>][]) {
+      try {
+        await fn();
+      } catch (e: any) {
+        console.error(`[finalizeTransaction] ${name} write failed:`, e?.message ?? e);
+        errors.push(name);
+      }
+    }
+
+    if (errors.length > 0) {
+      console.warn('[finalizeTransaction] partial write — failed collections:', errors.join(', '));
+    }
+
+    return { success: errors.length === 0 };
   } catch (e: any) {
     console.error('[finalizeTransaction] error:', e);
     return { success: false, error: e?.message ?? String(e) };
