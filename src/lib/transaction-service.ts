@@ -96,17 +96,40 @@ async function writeClient(db: Firestore, uid: string, a: Assessment) {
 
 // ── Write to vehicles ────────────────────────────────────────────────────────
 async function writeVehicle(db: Firestore, a: Assessment) {
-  const vehicleId = a.vehicle?.vin ?? a.id!;
+  // Always build a non-empty, valid Firestore document ID
+  // Priority: VIN → assessmentId → timestamp fallback
+  const rawVin = a.vehicle?.vin?.trim();
+  const vehicleId = (rawVin && rawVin.length > 0)
+    ? rawVin.replace(/[^a-zA-Z0-9_-]/g, '_')   // sanitize special chars
+    : (a.id && a.id.length > 0)
+      ? a.id
+      : `veh_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
   await setDoc(doc(db, 'vehicles', vehicleId), {
-    assessmentId: a.id,
-    year: a.vehicle?.year ?? null,
-    make: a.vehicle?.make ?? null,
-    model: a.vehicle?.model ?? null,
-    trim: a.vehicle?.trim ?? null,
-    vin: a.vehicle?.vin ?? null,
-    mileage: a.vehicle?.mileage ?? null,
-    licensePlate: a.vehicle?.licensePlate ?? null,
-    condition: a.condition ?? null,
+    assessmentId:  a.id   ?? null,
+    // Vehicle info — shown in Véhicules admin page
+    year:          a.vehicle?.year         ?? null,
+    make:          a.vehicle?.make         ?? null,
+    model:         a.vehicle?.model        ?? null,
+    trim:          a.vehicle?.trim         ?? null,
+    vin:           a.vehicle?.vin          ?? null,
+    mileage:       a.vehicle?.mileage      ?? null,
+    licensePlate:  a.vehicle?.licensePlate ?? null,
+    transmission:  a.vehicle?.transmission ?? null,
+    vehicleType:   a.vehicle?.vehicleType  ?? null,
+    // Client info — shown in Véhicules admin page (CLIENT column)
+    clientName:    a.client?.name          ?? null,
+    clientEmail:   a.client?.email         ?? null,
+    clientPhone:   a.client?.phone         ?? null,
+    // Offer — Véhicules admin reads `offeredPrice`, Dossiers reads `finalPrice`
+    offeredPrice:  a.valuation?.finalPrice ?? null,
+    finalPrice:    a.valuation?.finalPrice ?? null,
+    // PO/DO reference
+    purchaseOrder: a.summary?.purchaseOrder ?? null,
+    deliveryOrder: a.summary?.deliveryOrder ?? null,
+    // Condition
+    condition:     a.condition ?? null,
+    missingParts:  a.condition?.missingParts ?? null,
     createdAt: serverTimestamp(),
   }, { merge: true });
 }
