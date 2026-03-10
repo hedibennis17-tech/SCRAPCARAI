@@ -122,6 +122,13 @@ export function CarWizard() {
                 const existingUrls = updatedData.condition.photos.filter(photo => !isDataURI(photo));
                 const newUrls = await Promise.all(photoUploadPromises);
                 updatedData.condition.photos = [...existingUrls, ...newUrls];
+                // ✅ FIX: push Storage URLs back into React state so that
+                // finalizeTransaction() receives https:// URLs not base64 data URIs.
+                // Without this, writeVehicle filtered out all photos → empty photoUrls[].
+                setFormData(prev => ({
+                    ...prev,
+                    condition: { ...prev.condition, photos: updatedData.condition!.photos }
+                }));
             } catch (error) {
                 console.error("Error uploading photos:", error);
                 toast({
