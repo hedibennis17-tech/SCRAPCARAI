@@ -50,29 +50,89 @@ async function writeAssessment(db: Firestore, uid: string, a: Assessment) {
 
 // ── Write to transactions ────────────────────────────────────────────────────
 async function writeTransaction(db: Firestore, a: Assessment) {
+  const altAddr = (a.towing as any)?.alternateAddress;
+  const pickupAddress = a.towing?.sameAddress === 'no' && altAddr?.street
+    ? `${altAddr.street}, ${altAddr.city ?? ''}`.trim()
+    : `${a.client?.address ?? ''}, ${a.client?.city ?? ''}`.trim();
+
+  const rawDate = (a.towing as any)?.pickupDate ?? null;
+  let pickupDate: string | null = null;
+  if (rawDate) {
+    if (typeof rawDate === 'string') pickupDate = rawDate;
+    else if (rawDate?.seconds) pickupDate = new Date(rawDate.seconds * 1000).toISOString();
+    else if (rawDate instanceof Date) pickupDate = rawDate.toISOString();
+  }
+
+  // Photos: only keep Storage URLs (filter out data:// URIs)
+  const photoUrls = ((a.condition as any)?.photos ?? [])
+    .filter((p: string) => p && !p.startsWith('data:'));
+
   await setDoc(doc(db, 'transactions', a.id!), {
     assessmentId: a.id,
-    // PO/DO — used by Dossiers page
+    // ── References ──
     purchaseOrder: a.summary?.purchaseOrder ?? null,
     deliveryOrder: a.summary?.deliveryOrder ?? null,
     status: 'confirmed',
-    // Client — used by Dossiers page
-    clientName:    a.client?.name    ?? null,
-    clientEmail:   a.client?.email   ?? null,
-    clientPhone:   a.client?.phone   ?? null,
-    clientAddress: `${a.client?.address ?? ''}, ${a.client?.city ?? ''}, ${a.client?.province ?? ''}`,
-    // Vehicle — used by Dossiers page (reads vehicleYear/Make/Model/Vin/Mileage)
-    vehicleYear:    a.vehicle?.year         ?? null,
-    vehicleMake:    a.vehicle?.make         ?? null,
-    vehicleModel:   a.vehicle?.model        ?? null,
-    vehiclePlate:   a.vehicle?.licensePlate ?? null,
-    vehicleVin:     a.vehicle?.vin          ?? null,
-    vehicleMileage: a.vehicle?.mileage      ?? null,
-    // Offer — Dossiers page reads `finalPrice`, also store as offerAmount
+
+    // ── Client ──
+    clientName:     a.client?.name       ?? null,
+    clientEmail:    a.client?.email      ?? null,
+    clientPhone:    a.client?.phone      ?? null,
+    clientAddress:  a.client?.address    ?? null,
+    clientCity:     a.client?.city       ?? null,
+    clientProvince: a.client?.province   ?? null,
+    clientPostal:   a.client?.postalCode ?? null,
+    clientCountry:  a.client?.country    ?? null,
+
+    // ── Vehicle ──
+    vehicleYear:         a.vehicle?.year         ?? null,
+    vehicleMake:         a.vehicle?.make         ?? null,
+    vehicleModel:        a.vehicle?.model        ?? null,
+    vehiclePlate:        a.vehicle?.licensePlate ?? null,
+    vehicleVin:          a.vehicle?.vin          ?? null,
+    vehicleMileage:      a.vehicle?.mileage      ?? null,
+    vehicleTransmission: a.vehicle?.transmission ?? null,
+    vehicleDriveline:    a.vehicle?.driveline    ?? null,
+    vehicleType:         a.vehicle?.vehicleType  ?? null,
+    vehicleTrim:         a.vehicle?.trim         ?? null,
+
+    // ── Condition ──
+    conditionRuns:         a.condition?.runs        ?? null,
+    conditionAccident:     a.condition?.accident    ?? null,
+    conditionMissingParts: a.condition?.missingParts ?? null,
+    conditionHasRust:      a.condition?.hasRust     ?? null,
+    conditionRustDetails:  a.condition?.rustDetails ?? null,
+    conditionHasBodyDamage: a.condition?.hasBodyDamage ?? null,
+    conditionBodyDamage:   a.condition?.bodyDamageDetails ?? null,
+    conditionHasMechanical: a.condition?.hasMechanicalIssues ?? null,
+    conditionMechanical:   a.condition?.mechanicalIssues ?? null,
+    conditionIsComplete:   a.condition?.isComplete ?? null,
+    conditionIncomplete:   a.condition?.incompleteDetails ?? null,
+    photoUrls,
+
+    // ── Offer & Valuation ──
     finalPrice:  a.valuation?.finalPrice ?? null,
     offerAmount: a.valuation?.finalPrice ?? null,
-    towingDistance: (a.towing as any)?.towingDistance ?? null,
-    towingDuration: (a.towing as any)?.towingDuration ?? null,
+    valuationBreakdown: a.valuation?.breakdown ?? null,
+
+    // ── Towing ──
+    pickupAddress,
+    pickupDate,
+    pickupTimeSlot:  (a.towing as any)?.pickupTimeSlot  ?? null,
+    parkingLocation: (a.towing as any)?.parkingLocation ?? null,
+    towingDistance:  (a.towing as any)?.towingDistance  ?? null,
+    towingDuration:  (a.towing as any)?.towingDuration  ?? null,
+    towingAllWheels: a.towing?.allWheels ?? null,
+    towingFlatTires: a.towing?.flatTires ?? null,
+    towingBlocked:   a.towing?.blocked   ?? null,
+    towingHasKeys:   a.towing?.hasKeys   ?? null,
+
+    // ── Yard ──
+    yardName:    a.yard?.yard_name        ?? null,
+    yardAddress: a.yard?.contact?.address ?? null,
+    yardPhone:   a.yard?.contact?.phone   ?? null,
+    yardEmail:   a.yard?.contact?.email   ?? null,
+
     createdAt: serverTimestamp(),
   }, { merge: true });
 }

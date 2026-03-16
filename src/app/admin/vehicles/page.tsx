@@ -4,7 +4,7 @@ import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { Loader2, Search, Images, X, ChevronLeft, ChevronRight, Camera } from 'lucide-react';
 import { useFirebase } from '@/firebase';
 import { useCollection } from 'react-firebase-hooks/firestore';
-import { collection, query, orderBy, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, orderBy, updateDoc, doc, getDoc } from 'firebase/firestore';
 
 const STATUS_OPTIONS = [
   { value: 'pending_pickup', label: 'En attente' },
@@ -16,9 +16,31 @@ const STATUS_OPTIONS = [
 
 const PARTS = ['Catalyst', 'Engine', 'Transmission', 'Battery', 'Wheels'];
 
-function PhotoModal({ vehicle, onClose }: { vehicle: any; onClose: () => void }) {
-  const photos: string[] = vehicle.photoUrls ?? [];
+function PhotoModal({ vehicle, firestore, onClose }: { vehicle: any; firestore: any; onClose: () => void }) {
+  const [photos, setPhotos] = useState<string[]>(vehicle.photoUrls ?? []);
+  const [fetchingPhotos, setFetchingPhotos] = useState(false);
   const [current, setCurrent] = useState(0);
+
+  // If no photos in vehicle doc, try fetching from assessments collection
+  useEffect(() => {
+    const storedPhotos: string[] = vehicle.photoUrls ?? [];
+    const hasRealPhotos = storedPhotos.some((p: string) => p && p.startsWith('http'));
+    if (!hasRealPhotos && vehicle.assessmentId && firestore) {
+      setFetchingPhotos(true);
+      getDoc(doc(firestore, 'assessments', vehicle.assessmentId))
+        .then(snap => {
+          if (snap.exists()) {
+            const data = snap.data();
+            const assessmentPhotos: string[] = (data?.condition?.photos ?? [])
+              .filter((p: string) => p && p.startsWith('http'));
+            if (assessmentPhotos.length > 0) setPhotos(assessmentPhotos);
+          }
+        })
+        .catch(() => { /* silent */ })
+        .finally(() => setFetchingPhotos(false));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const prev = useCallback(() => setCurrent(i => (i - 1 + photos.length) % photos.length), [photos.length]);
   const next = useCallback(() => setCurrent(i => (i + 1) % photos.length), [photos.length]);
@@ -32,6 +54,9 @@ function PhotoModal({ vehicle, onClose }: { vehicle: any; onClose: () => void })
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [onClose, prev, next, photos.length]);
+
+  // Reset current index when photos list changes
+  useEffect(() => { setCurrent(0); }, [photos]);
 
   return (
     <div
@@ -80,8 +105,10 @@ function PhotoModal({ vehicle, onClose }: { vehicle: any; onClose: () => void })
             alignItems: 'center', justifyContent: 'center',
             color: 'rgba(255,255,255,0.3)', gap: 12,
           }}>
-            <Camera style={{ width: 48, height: 48, opacity: 0.3 }} />
-            <span style={{ fontSize: '0.88rem' }}>Aucune photo disponible pour ce véhicule</span>
+            {fetchingPhotos
+              ? <><Loader2 style={{ width: 36, height: 36, opacity: 0.5 }} className="animate-spin" /><span style={{ fontSize: '0.88rem' }}>Chargement des photos…</span></>
+              : <><Camera style={{ width: 48, height: 48, opacity: 0.3 }} /><span style={{ fontSize: '0.88rem' }}>Aucune photo disponible pour ce véhicule</span></>
+            }
           </div>
         ) : (
           <>
@@ -140,8 +167,7 @@ function PhotoModal({ vehicle, onClose }: { vehicle: any; onClose: () => void })
 }
 
 export default function AdminVehiclesPage() {
-  const { firestore } = useFirebase();
-  const [search, setSearch] = useState('');
+  const { firestore } = useFirebase();  const [search, setSearch] = useState('');
   const [photoVehicle, setPhotoVehicle] = useState<any>(null);
 
   const q = firestore ? query(collection(firestore, 'vehicles'), orderBy('createdAt', 'desc')) : null;
@@ -169,7 +195,7 @@ export default function AdminVehiclesPage() {
 
   return (
     <>
-      {photoVehicle && <PhotoModal vehicle={photoVehicle} onClose={() => setPhotoVehicle(null)} />}
+      {photoVehicle && <PhotoModal vehicle={photoVehicle} firestore={firestore} onClose={() => setPhotoVehicle(null)} />}
 
       <div className="admin-card">
         <div className="admin-card-header">
