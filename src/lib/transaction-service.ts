@@ -15,15 +15,15 @@ async function ensureAuth(auth: Auth): Promise<string> {
   // Attempt anonymous sign-in
   try {
     const cred = await signInAnonymously(auth);
-    return cred.user.uid;
+    return (cred.user as any).uid as string;
   } catch (e: any) {
     // Anonymous auth disabled or network error — try once more after short wait
     await new Promise(r => setTimeout(r, 800));
     if (auth.currentUser) return auth.currentUser.uid;
     try {
-      const cred = await signInAnonymously(auth);
-      return cred.user.uid;
-    } catch {
+      const cred2 = await signInAnonymously(auth);
+      return (cred2.user as any).uid as string;
+    } catch (_e) {
       // Final fallback: local UID (Firestore writes may fail with permission denied)
       console.warn('[ensureAuth] Anonymous auth unavailable — using local UID. Enable Anonymous auth in Firebase Console → Authentication → Sign-in methods.');
       return getOrCreateLocalUid();
@@ -98,13 +98,13 @@ async function writeTransaction(db: Firestore, a: Assessment) {
     vehicleYear:         a.vehicle?.year         ?? null,
     vehicleMake:         a.vehicle?.make         ?? null,
     vehicleModel:        a.vehicle?.model        ?? null,
-    vehiclePlate:        a.vehicle?.licensePlate ?? null,
+    vehiclePlate:        (a.vehicle as any)?.licensePlate ?? null,
     vehicleVin:          a.vehicle?.vin          ?? null,
     vehicleMileage:      a.vehicle?.mileage      ?? null,
     vehicleTransmission: a.vehicle?.transmission ?? null,
     vehicleDriveline:    a.vehicle?.driveline    ?? null,
     vehicleType:         a.vehicle?.vehicleType  ?? null,
-    vehicleTrim:         a.vehicle?.trim         ?? null,
+    vehicleTrim:         (a.vehicle as any)?.trim         ?? null,
 
     // ── Condition ──
     conditionRuns:         a.condition?.runs        ?? null,
@@ -181,10 +181,10 @@ async function writeVehicle(db: Firestore, a: Assessment) {
     year:          a.vehicle?.year         ?? null,
     make:          a.vehicle?.make         ?? null,
     model:         a.vehicle?.model        ?? null,
-    trim:          a.vehicle?.trim         ?? null,
+    trim:          (a.vehicle as any)?.trim         ?? null,
     vin:           a.vehicle?.vin          ?? null,
     mileage:       a.vehicle?.mileage      ?? null,
-    licensePlate:  a.vehicle?.licensePlate ?? null,
+    licensePlate:  (a.vehicle as any)?.licensePlate ?? null,
     transmission:  a.vehicle?.transmission ?? null,
     vehicleType:   a.vehicle?.vehicleType  ?? null,
     // Client info — shown in Véhicules admin page (CLIENT column)
@@ -236,7 +236,7 @@ async function writeTowing(db: Firestore, uid: string, a: Assessment) {
     vehicleYear:  a.vehicle?.year         ?? null,
     vehicleMake:  a.vehicle?.make         ?? null,
     vehicleModel: a.vehicle?.model        ?? null,
-    vehiclePlate: a.vehicle?.licensePlate ?? null,
+    vehiclePlate: (a.vehicle as any)?.licensePlate ?? null,
     // Address
     pickupAddress,
     vendorAddress: '1547 rue Trépanier, Laval, QC H7W 3G5, Canada',

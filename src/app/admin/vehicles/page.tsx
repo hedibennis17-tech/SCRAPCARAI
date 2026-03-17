@@ -223,6 +223,7 @@ export default function AdminVehiclesPage() {
         {error && <p className="admin-error">{error.message}</p>}
 
         {!loading && !error && (
+          <>
           <div className="admin-table-wrap">
             <table className="admin-table">
               <thead>
@@ -299,6 +300,7 @@ export default function AdminVehiclesPage() {
             total={filtered.length} page={page} pageSize={pageSize}
             onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }}
           />
+          </>
         )}
       </div>
     </>

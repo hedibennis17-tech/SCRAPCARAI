@@ -137,7 +137,7 @@ async function buildPdf(a: Assessment, orderType: 'PO' | 'DO'): Promise<jsPDF> {
       };
 
       try {
-        const photosY = (doc as any).lastAutoTable?.finalY + 8 ?? 200;
+        const photosY = ((doc as any).lastAutoTable?.finalY ?? 0) + 8 || 200;
         // Section header
         doc.setFillColor(30, 30, 45);
         doc.setFont('helvetica', 'bold');
