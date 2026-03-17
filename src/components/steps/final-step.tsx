@@ -243,38 +243,71 @@ type FinalStepProps = { onRestart: () => void; data: Assessment; lang: 'en' | 'f
 
 export function FinalStep({ onRestart, data, lang }: FinalStepProps) {
   const c = content[lang];
-  const { firestore, auth } = useFirebase();
+  const { firestore, auth, isUserLoading } = useFirebase();
   const { summary, client, yard } = data;
 
-  const [isSaving,     setIsSaving]     = useState(true);
-  const [dbOk,         setDbOk]         = useState(false);
-  const [dbError,      setDbError]      = useState(false);
-  const [emailOk,      setEmailOk]      = useState(false);
-  const [emailError,   setEmailError]   = useState(false);
-  const [pdfLoading,   setPdfLoading]   = useState<'PO' | 'DO' | null>(null);
+  const [isSaving,   setIsSaving]   = useState(true);
+  const [dbOk,       setDbOk]       = useState(false);
+  const [dbError,    setDbError]    = useState(false);
+  const [emailOk,    setEmailOk]    = useState(false);
+  const [emailError, setEmailError] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState<'PO' | 'DO' | null>(null);
   const ran = useRef(false);
 
-  // ── Save on mount ──────────────────────────────────────────────────────────
+  // ── Save on mount — wait for auth to resolve first (critical on mobile) ──
   useEffect(() => {
+    // Don't start while Firebase auth is still loading (undefined = loading)
+    if (isUserLoading) return;
     if (ran.current) return;
     ran.current = true;
 
     const run = async () => {
       setIsSaving(true);
       try {
-        // 1. Firestore
+        // 1. Firestore — auth may be null (anonymous disabled) but rules now allow create:true
         if (firestore && auth) {
           const tx = await finalizeTransaction(firestore, auth, data);
-          tx.success ? setDbOk(true) : setDbError(true);
+          if (tx.success) {
+            setDbOk(true);
+          } else {
+            // Client-side write failed — try server-side fallback
+            console.warn('[FinalStep] Client write failed, trying server fallback…');
+            try {
+              const res = await fetch('/api/save-transaction', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ assessment: data }),
+              });
+              const json = await res.json();
+              json.ok ? setDbOk(true) : setDbError(true);
+            } catch {
+              setDbError(true);
+            }
+          }
+          if (tx.partialErrors && tx.partialErrors.length > 0) {
+            console.warn('[FinalStep] Partial Firestore errors:', tx.partialErrors);
+          }
         } else {
-          console.error('Firestore/auth missing:', { firestore: !!firestore, auth: !!auth });
-          setDbError(true);
+          // No client-side Firestore — go straight to server fallback
+          console.warn('[FinalStep] No firestore/auth, using server fallback');
+          try {
+            const res = await fetch('/api/save-transaction', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ assessment: data }),
+            });
+            const json = await res.json();
+            json.ok ? setDbOk(true) : setDbError(true);
+          } catch {
+            setDbError(true);
+          }
         }
-        // 2. Emails
+
+        // 2. Confirmation email
         const em = await sendConfirmationEmail(data, lang);
         em.success ? setEmailOk(true) : setEmailError(true);
 
-        // 3. SMS (fire-and-forget, no block)
+        // 3. SMS (fire-and-forget)
         fetch('/api/send-sms', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -282,16 +315,18 @@ export function FinalStep({ onRestart, data, lang }: FinalStepProps) {
         }).catch(() => {});
 
       } catch (e) {
-        console.error('FinalStep error:', e);
+        console.error('[FinalStep] Unexpected error:', e);
         setDbError(true);
         setEmailError(true);
       } finally {
         setIsSaving(false);
       }
     };
+
     run();
+  // isUserLoading is the key dependency — re-run once auth resolves
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isUserLoading]);
 
   // ── PDF download ───────────────────────────────────────────────────────────
   const downloadPdf = useCallback(async (orderType: 'PO' | 'DO') => {

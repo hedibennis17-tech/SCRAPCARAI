@@ -7,6 +7,7 @@ import { useCollection } from 'react-firebase-hooks/firestore';
 import { collection, query, orderBy } from 'firebase/firestore';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { AdminPagination, paginate, type PageSize } from '@/components/admin/admin-pagination';
 
 // ─── PDF builder ───────────────────────────────────────────────────────────────
 async function buildFullPdf(t: any, orderType: 'PO' | 'DO'): Promise<jsPDF> {
@@ -236,25 +237,36 @@ export default function AdminFilesPage() {
   const [search, setSearch] = useState('');
   const [generating, setGenerating] = useState<string | null>(null);
   const [emailState, setEmailState] = useState<Record<string, 'sending' | 'ok' | 'err'>>({});
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<PageSize>(20);
 
   const q = firestore ? query(collection(firestore, 'transactions'), orderBy('createdAt', 'desc')) : null;
   const [snap, loading, error] = useCollection(q);
 
   const transactions = useMemo(() => {
     if (!snap) return [];
-    return snap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
+    return snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a: any, b: any) => {
+        const ta = a.createdAt?.seconds ?? 0;
+        const tb = b.createdAt?.seconds ?? 0;
+        return tb - ta;
+      }) as any[];
   }, [snap]);
 
   const filtered = useMemo(() => {
     if (!search) return transactions;
     const s = search.toLowerCase();
-    return transactions.filter(t =>
+    return transactions.filter((t: any) =>
       t.clientName?.toLowerCase().includes(s) ||
       t.purchaseOrder?.toLowerCase().includes(s) ||
       t.vehicleMake?.toLowerCase().includes(s) ||
       t.clientEmail?.toLowerCase().includes(s)
     );
   }, [transactions, search]);
+
+  const paged = paginate(filtered, page, pageSize);
+  const handleSearch = (v: string) => { setSearch(v); setPage(1); };
 
   const downloadPdf = async (t: any, type: 'PO' | 'DO') => {
     const key = `${t.id}-${type}`;
@@ -292,7 +304,7 @@ export default function AdminFilesPage() {
         <div className="admin-search-wrap">
           <Search className="admin-search-icon" />
           <input type="search" placeholder="Rechercher…" className="admin-search-input"
-            value={search} onChange={e => setSearch(e.target.value)} />
+            value={search} onChange={e => handleSearch(e.target.value)} />
         </div>
       </div>
 
@@ -300,7 +312,8 @@ export default function AdminFilesPage() {
       {error && <p className="admin-error">{error.message}</p>}
 
       {!loading && !error && (
-        <div className="admin-table-wrap">
+        <>
+          <div className="admin-table-wrap">
           <table className="admin-table">
             <thead>
               <tr>
@@ -313,7 +326,7 @@ export default function AdminFilesPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.length > 0 ? filtered.map((t: any) => (
+              {filtered.length > 0 ? paged.map((t: any) => (
                 <tr key={t.id} className="admin-table-row">
                   <td>
                     <div className="admin-table-name">{t.clientName || '—'}</div>
@@ -387,7 +400,12 @@ export default function AdminFilesPage() {
               )}
             </tbody>
           </table>
-        </div>
+          </div>
+          <AdminPagination
+            total={filtered.length} page={page} pageSize={pageSize}
+            onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }}
+          />
+        </>
       )}
     </div>
   );

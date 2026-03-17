@@ -5,6 +5,7 @@ import { Loader2, Search, Images, X, ChevronLeft, ChevronRight, Camera } from 'l
 import { useFirebase } from '@/firebase';
 import { useCollection } from 'react-firebase-hooks/firestore';
 import { collection, query, orderBy, updateDoc, doc, getDoc } from 'firebase/firestore';
+import { AdminPagination, paginate, type PageSize } from '@/components/admin/admin-pagination';
 
 const STATUS_OPTIONS = [
   { value: 'pending_pickup', label: 'En attente' },
@@ -167,26 +168,34 @@ function PhotoModal({ vehicle, firestore, onClose }: { vehicle: any; firestore: 
 }
 
 export default function AdminVehiclesPage() {
-  const { firestore } = useFirebase();  const [search, setSearch] = useState('');
+  const { firestore } = useFirebase();
+  const [search, setSearch] = useState('');
   const [photoVehicle, setPhotoVehicle] = useState<any>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<PageSize>(20);
 
   const q = firestore ? query(collection(firestore, 'vehicles'), orderBy('createdAt', 'desc')) : null;
   const [snap, loading, error] = useCollection(q);
 
   const vehicles = useMemo(() => {
     if (!snap) return [];
-    return snap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
+    return snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a: any, b: any) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)) as any[];
   }, [snap]);
 
   const filtered = useMemo(() => {
     if (!search) return vehicles;
     const s = search.toLowerCase();
-    return vehicles.filter(v =>
+    return vehicles.filter((v: any) =>
       v.make?.toLowerCase().includes(s) ||
       v.model?.toLowerCase().includes(s) ||
       v.clientName?.toLowerCase().includes(s)
     );
   }, [vehicles, search]);
+
+  const paged = paginate(filtered, page, pageSize);
+  const handleSearch = (v: string) => { setSearch(v); setPage(1); };
 
   const updateStatus = async (id: string, status: string) => {
     if (!firestore) return;
@@ -206,7 +215,7 @@ export default function AdminVehiclesPage() {
           <div className="admin-search-wrap">
             <Search className="admin-search-icon" />
             <input type="search" placeholder="Rechercher…" className="admin-search-input"
-              value={search} onChange={e => setSearch(e.target.value)} />
+              value={search} onChange={e => handleSearch(e.target.value)} />
           </div>
         </div>
 
@@ -227,7 +236,7 @@ export default function AdminVehiclesPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.length > 0 ? filtered.map((v: any) => {
+                {filtered.length > 0 ? paged.map((v: any) => {
                   const missing: string[] = v.missingParts ?? [];
                   const photoCount: number = (v.photoUrls ?? []).length;
                   return (
@@ -286,6 +295,10 @@ export default function AdminVehiclesPage() {
               </tbody>
             </table>
           </div>
+          <AdminPagination
+            total={filtered.length} page={page} pageSize={pageSize}
+            onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }}
+          />
         )}
       </div>
     </>
