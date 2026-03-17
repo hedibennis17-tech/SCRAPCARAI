@@ -264,43 +264,31 @@ export function FinalStep({ onRestart, data, lang }: FinalStepProps) {
     const run = async () => {
       setIsSaving(true);
       try {
-        // 1. Firestore — auth may be null (anonymous disabled) but rules now allow create:true
+        // 1. Firestore — dual write: client-side SDK + server-side fallback in parallel
+        const serverSave = fetch('/api/save-transaction', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ assessment: data }),
+        }).then(r => r.json()).catch(() => ({ ok: false }));
+
         if (firestore && auth) {
-          const tx = await finalizeTransaction(firestore, auth, data);
+          // Try client-side first (faster, real-time)
+          const tx = await Promise.race([
+            finalizeTransaction(firestore, auth, data),
+            new Promise<{ success: boolean }>(r => setTimeout(() => r({ success: false }), 8000)),
+          ]);
+
           if (tx.success) {
             setDbOk(true);
           } else {
-            // Client-side write failed — try server-side fallback
-            console.warn('[FinalStep] Client write failed, trying server fallback…');
-            try {
-              const res = await fetch('/api/save-transaction', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ assessment: data }),
-              });
-              const json = await res.json();
-              json.ok ? setDbOk(true) : setDbError(true);
-            } catch {
-              setDbError(true);
-            }
-          }
-          if (tx.partialErrors && tx.partialErrors.length > 0) {
-            console.warn('[FinalStep] Partial Firestore errors:', tx.partialErrors);
+            // Client failed/timed out — wait for server result
+            const serverResult = await serverSave;
+            serverResult.ok ? setDbOk(true) : setDbError(true);
           }
         } else {
-          // No client-side Firestore — go straight to server fallback
-          console.warn('[FinalStep] No firestore/auth, using server fallback');
-          try {
-            const res = await fetch('/api/save-transaction', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ assessment: data }),
-            });
-            const json = await res.json();
-            json.ok ? setDbOk(true) : setDbError(true);
-          } catch {
-            setDbError(true);
-          }
+          // No client firebase — wait for server result
+          const serverResult = await serverSave;
+          serverResult.ok ? setDbOk(true) : setDbError(true);
         }
 
         // 2. Confirmation email

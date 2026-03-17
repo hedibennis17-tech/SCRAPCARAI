@@ -4,13 +4,15 @@ import React, { createContext, useContext, ReactNode, useMemo } from 'react';
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
 import { Auth, User } from 'firebase/auth';
+import { FirebaseStorage } from 'firebase/storage';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
-import { auth, firestore } from './firebase';
+import { auth, firestore, storage } from './firebase';
 
 interface FirebaseContextState {
   firebaseApp?: FirebaseApp;
   firestore?: Firestore;
+  storage?: FirebaseStorage;
   auth?: Auth;
   user: User | null | undefined;
   isUserLoading: boolean;
@@ -20,13 +22,12 @@ interface FirebaseContextState {
 const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
 
 export function FirebaseProvider({ children }: { children: ReactNode }) {
-  // CRITICAL: Hooks must be called unconditionally at the top level.
-  // Since auth is initialized in firebase.ts, we can pass it directly.
   const [user, isUserLoading, userError] = useAuthState(auth);
 
   const contextValue = useMemo((): FirebaseContextState => ({
     firebaseApp: auth?.app,
     firestore,
+    storage,   // ← FIXED: was missing, causing photos to never upload
     auth,
     user,
     isUserLoading,
