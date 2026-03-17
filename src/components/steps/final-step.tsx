@@ -120,20 +120,21 @@ async function buildPdf(a: Assessment, orderType: 'PO' | 'DO'): Promise<jsPDF> {
 
   // Photos section (only on PO)
   if (orderType === 'PO') {
-    const photoUrls: string[] = (condition as any)?.photos?.filter((p: string) => p && !p.startsWith('data:')) ?? [];
-    if (photoUrls.length > 0) {
-      const loadImg = (url: string): Promise<string> => new Promise((resolve, reject) => {
-        const img = new window.Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width; canvas.height = img.height;
-          canvas.getContext('2d')!.drawImage(img, 0, 0);
-          resolve(canvas.toDataURL('image/jpeg', 0.75));
-        };
-        img.onerror = () => reject(new Error('img load failed'));
-        img.src = url;
-      });
+    // Accept BOTH data: URIs (Storage upload failed) AND https:// Storage URLs
+    const allPhotos: string[] = (condition as any)?.photos ?? [];
+    const photoList = allPhotos.filter((p: string) => p && (p.startsWith('data:') || p.startsWith('http')));
+
+    if (photoList.length > 0) {
+      // Load an https URL via the server-side proxy (avoids CORS / canvas taint)
+      const loadImg = async (src: string): Promise<string> => {
+        if (src.startsWith('data:')) return src; // data URIs are ready to use directly
+        try {
+          const res = await fetch(`/api/img-proxy?url=${encodeURIComponent(src)}`);
+          const json = await res.json();
+          if (json.ok && json.dataUri) return json.dataUri;
+        } catch (_) { /* fall through */ }
+        return ''; // skip on error
+      };
 
       try {
         const photosY = (doc as any).lastAutoTable?.finalY + 8 ?? 200;
@@ -150,13 +151,12 @@ async function buildPdf(a: Assessment, orderType: 'PO' | 'DO'): Promise<jsPDF> {
         let photoY = photosY + 11;
         const imgW = 57; const imgH = 43; const gap = 4;
 
-        for (let i = 0; i < Math.min(photoUrls.length, 6); i++) {
+        for (let i = 0; i < Math.min(photoList.length, 6); i++) {
           if (photoX + imgW > 196) { photoX = 14; photoY += imgH + gap; }
-          // Add new page if needed
           if (photoY + imgH > 272) { doc.addPage(); photoX = 14; photoY = 14; }
           try {
-            const b64 = await loadImg(photoUrls[i]);
-            doc.addImage(b64, 'JPEG', photoX, photoY, imgW, imgH);
+            const imgData = await loadImg(photoList[i]);
+            if (imgData) doc.addImage(imgData, 'JPEG', photoX, photoY, imgW, imgH);
           } catch (_) { /* skip broken image */ }
           photoX += imgW + gap;
         }

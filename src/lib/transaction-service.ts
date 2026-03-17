@@ -12,12 +12,22 @@ import { getOrCreateLocalUid } from './local-uid';
 // If disabled/unavailable, falls back to a local session UID silently.
 async function ensureAuth(auth: Auth): Promise<string> {
   if (auth.currentUser) return auth.currentUser.uid;
+  // Attempt anonymous sign-in
   try {
     const cred = await signInAnonymously(auth);
     return cred.user.uid;
-  } catch {
-    // Anonymous auth disabled — use local UID (no console noise)
-    return getOrCreateLocalUid();
+  } catch (e: any) {
+    // Anonymous auth disabled or network error — try once more after short wait
+    await new Promise(r => setTimeout(r, 800));
+    if (auth.currentUser) return auth.currentUser.uid;
+    try {
+      const cred = await signInAnonymously(auth);
+      return cred.user.uid;
+    } catch {
+      // Final fallback: local UID (Firestore writes may fail with permission denied)
+      console.warn('[ensureAuth] Anonymous auth unavailable — using local UID. Enable Anonymous auth in Firebase Console → Authentication → Sign-in methods.');
+      return getOrCreateLocalUid();
+    }
   }
 }
 
@@ -262,7 +272,7 @@ export async function finalizeTransaction(
   db: Firestore,
   auth: Auth,
   assessment: Assessment,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; partialErrors?: string[] }> {
   try {
     // Ensure we always have a valid string ID — Firestore requires a non-empty string
     if (!assessment.id) {
@@ -271,34 +281,47 @@ export async function finalizeTransaction(
         : `id_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     }
 
-    const uid = await ensureAuth(auth);
+    let uid = 'anonymous';
+    try {
+      uid = await ensureAuth(auth);
+    } catch (authErr: any) {
+      console.warn('[finalizeTransaction] Auth failed, proceeding anyway:', authErr?.message);
+    }
 
     // Run each write independently — one failure cannot block the others
     const errors: string[] = [];
 
     for (const [name, fn] of [
-      ['assessment',   () => writeAssessment(db, uid, assessment)],
-      ['transaction',  () => writeTransaction(db, assessment)],
-      ['client',       () => writeClient(db, uid, assessment)],
-      ['vehicle',      () => writeVehicle(db, assessment)],
-      ['towing',       () => writeTowing(db, uid, assessment)],
-      ['report',       () => writeReport(db, assessment)],
+      ['assessment',  () => writeAssessment(db, uid, assessment)],
+      ['transaction', () => writeTransaction(db, assessment)],
+      ['client',      () => writeClient(db, uid, assessment)],
+      ['vehicle',     () => writeVehicle(db, assessment)],
+      ['towing',      () => writeTowing(db, uid, assessment)],
+      ['report',      () => writeReport(db, assessment)],
     ] as [string, () => Promise<void>][]) {
       try {
         await fn();
+        console.log(`[finalizeTransaction] ✅ ${name} saved`);
       } catch (e: any) {
-        console.error(`[finalizeTransaction] ${name} write failed:`, e?.message ?? e);
+        console.error(`[finalizeTransaction] ❌ ${name} failed:`, e?.code ?? e?.message ?? e);
         errors.push(name);
       }
     }
 
-    if (errors.length > 0) {
-      console.warn('[finalizeTransaction] partial write — failed collections:', errors.join(', '));
+    if (errors.length === 0) {
+      console.log('[finalizeTransaction] ✅ All collections saved');
+    } else {
+      console.warn('[finalizeTransaction] Partial write — failed:', errors.join(', '));
     }
 
-    return { success: errors.length === 0 };
+    // Success if at least one of the two critical collections (transaction / assessment) saved
+    const criticalOk = !errors.includes('transaction') || !errors.includes('assessment');
+    return {
+      success: criticalOk,
+      partialErrors: errors.length > 0 ? errors : undefined,
+    };
   } catch (e: any) {
-    console.error('[finalizeTransaction] error:', e);
+    console.error('[finalizeTransaction] Unexpected error:', e);
     return { success: false, error: e?.message ?? String(e) };
   }
 }

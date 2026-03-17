@@ -152,7 +152,7 @@ async function buildFullPdf(t: any, orderType: 'PO' | 'DO'): Promise<jsPDF> {
   }
 
   /* ── PHOTOS (PO seulement) ── */
-  const photos: string[] = (t.photoUrls ?? []).filter((p: string) => p && p.startsWith('http'));
+  const photos: string[] = (t.photoUrls ?? []).filter((p: string) => p && (p.startsWith('http') || p.startsWith('data:')));
   if (orderType === 'PO' && photos.length > 0) {
     const sY = ((doc as any).lastAutoTable?.finalY ?? 240) + 6;
     const pH = doc.internal.pageSize.height;
@@ -164,22 +164,25 @@ async function buildFullPdf(t: any, orderType: 'PO' | 'DO'): Promise<jsPDF> {
     doc.text('PHOTOS DU VÉHICULE', 17, headerY + 5.5);
     doc.setTextColor(0, 0, 0);
 
-    const loadImg = (url: string): Promise<string> => new Promise((res, rej) => {
-      const img = new window.Image(); img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
-        c.getContext('2d')!.drawImage(img, 0, 0);
-        res(c.toDataURL('image/jpeg', 0.80));
-      };
-      img.onerror = () => rej(new Error('img failed')); img.src = url;
-    });
+    const loadImg = async (url: string): Promise<string> => {
+      if (url.startsWith('data:')) return url;
+      try {
+        const r = await fetch(`/api/img-proxy?url=${encodeURIComponent(url)}`);
+        const j = await r.json();
+        if (j.ok && j.dataUri) return j.dataUri;
+      } catch (_) { /* fall through */ }
+      return '';
+    };
 
     let px = 14, py = headerY + 11;
     const iw = 57, ih = 44, gap = 4;
     for (let i = 0; i < Math.min(photos.length, 9); i++) {
       if (px + iw > 196) { px = 14; py += ih + gap; }
       if (py + ih > pH - 14) { doc.addPage(); px = 14; py = 14; }
-      try { doc.addImage(await loadImg(photos[i]), 'JPEG', px, py, iw, ih); } catch (_) { /* skip */ }
+      try {
+        const imgData = await loadImg(photos[i]);
+        if (imgData) doc.addImage(imgData, 'JPEG', px, py, iw, ih);
+      } catch (_) { /* skip */ }
       px += iw + gap;
     }
   }

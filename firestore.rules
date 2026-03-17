@@ -7,50 +7,57 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // assessments — anyone signed in (incl. anonymous) can create
+    // assessments — public create (wizard form), auth required for read/update
     match /assessments/{id} {
       allow read: if true;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null;
+      allow create: if true;   // wizard runs without guaranteed auth
+      allow update: if true;   // wizard progressive updates
+      allow delete: if request.auth != null;
     }
 
-    // transactions
+    // transactions — public create (finalized by wizard), admin reads
     match /transactions/{id} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if request.auth != null;
     }
 
     // clients
     match /clients/{id} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if request.auth != null;
 
       match /assessments/{aid} {
-        allow read, write: if request.auth != null;
+        allow read: if request.auth != null;
+        allow write: if true;
       }
     }
 
-    // vehicles
+    // vehicles — public create, admin reads/updates
     match /vehicles/{id} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null;
+      allow create: if true;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
     }
 
     // towing_dispatches
     match /towing_dispatches/{id} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null;
+      allow create: if true;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
     }
 
     // reports_data
     match /reports_data/{id} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null;
+      allow create: if true;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
     }
 
     // admin space

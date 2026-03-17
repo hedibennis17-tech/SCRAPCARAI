@@ -1,6 +1,16 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    // Public photos uploaded by the wizard (no auth required for wizard form)
+    match /assessments/{docId}/{photoId} {
+      allow read: if true;
+      allow write: if true;
+    }
+    match /clients/{uid}/assessments/{docId}/{photoId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+    // Everything else: authenticated only
     match /{allPaths=**} {
       allow read, write: if request.auth != null;
     }
