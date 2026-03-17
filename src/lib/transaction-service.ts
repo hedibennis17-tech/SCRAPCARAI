@@ -19,7 +19,7 @@ async function ensureAuth(auth: Auth): Promise<string> {
   } catch (e: any) {
     // Anonymous auth disabled or network error — try once more after short wait
     await new Promise(r => setTimeout(r, 800));
-    if (auth.currentUser) return auth.currentUser.uid;
+    if (auth.currentUser) return (auth.currentUser as any).uid as string;
     try {
       const cred2 = await signInAnonymously(auth);
       return (cred2.user as any).uid as string;
