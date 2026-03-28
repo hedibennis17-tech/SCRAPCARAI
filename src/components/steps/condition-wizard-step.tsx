@@ -217,7 +217,9 @@ export function ConditionWizardStep({ onNext, onBack, data, lang }: ConditionWiz
 
     try {
       const compressedDataUris = await Promise.all(
-        files.map(file => compressImage(file, 2, 1600))
+        // maxSizeMB=0.4, maxDimension=700 → ~50-150KB per photo as base64
+        // Keeps 5 photos well under Firestore 1MB document limit as fallback
+        files.map(file => compressImage(file, 0.4, 700))
       );
 
       const newPhotos = [...(form.getValues('photos') || []), ...compressedDataUris];

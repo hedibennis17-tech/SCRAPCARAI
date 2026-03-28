@@ -17,13 +17,13 @@ const STATUS_OPTIONS = [
 
 const PARTS = ['Catalyst', 'Engine', 'Transmission', 'Battery', 'Wheels'];
 
-// ── Helper: extract HTTP photo URLs from a vehicle document ──────────────────
+// ── Helper: extract displayable photo URLs from a vehicle document ────────────
 function getHttpPhotos(v: any): string[] {
-  // Primary source: photoUrls field (already filtered to http)
-  const fromPhotoUrls: string[] = (v.photoUrls ?? []).filter((p: string) => p && p.startsWith('http'));
+  // Primary source: photoUrls field
+  const fromPhotoUrls: string[] = (v.photoUrls ?? []).filter((p: string) => p && (p.startsWith('http') || p.startsWith('data:')));
   if (fromPhotoUrls.length > 0) return fromPhotoUrls;
-  // Fallback: condition.photos (may contain http URLs if upload succeeded)
-  const fromCondition: string[] = ((v.condition?.photos) ?? []).filter((p: string) => p && p.startsWith('http'));
+  // Fallback: condition.photos (may contain http or data: URIs)
+  const fromCondition: string[] = ((v.condition?.photos) ?? []).filter((p: string) => p && (p.startsWith('http') || p.startsWith('data:')));
   return fromCondition;
 }
 
@@ -42,7 +42,7 @@ function PhotoModal({ vehicle, firestore, onClose }: { vehicle: any; firestore: 
           if (snap.exists()) {
             const data = snap.data();
             const assessmentPhotos: string[] = (data?.condition?.photos ?? [])
-              .filter((p: string) => p && p.startsWith('http'));
+              .filter((p: string) => p && (p.startsWith('http') || p.startsWith('data:')));
             if (assessmentPhotos.length > 0) setPhotos(assessmentPhotos);
           }
         })

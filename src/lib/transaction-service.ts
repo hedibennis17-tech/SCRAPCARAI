@@ -73,9 +73,10 @@ async function writeTransaction(db: Firestore, a: Assessment) {
     else if (rawDate instanceof Date) pickupDate = rawDate.toISOString();
   }
 
-  // Photos: only keep Firebase Storage URLs (filter out data: URIs and empty strings)
+  // Photos: keep Storage URLs AND compressed data: URIs (fallback when Storage unavailable)
+  // The dashboard accepts both http: and data: URIs
   const photoUrls = ((a.condition as any)?.photos ?? [])
-    .filter((p: string) => p && p.startsWith('http'));
+    .filter((p: string) => p && (p.startsWith('http') || p.startsWith('data:')));
 
   await setDoc(doc(db, 'transactions', a.id!), {
     assessmentId: a.id,
@@ -201,7 +202,7 @@ async function writeVehicle(db: Firestore, a: Assessment) {
     condition:     a.condition ?? null,
     missingParts:  a.condition?.missingParts ?? null,
     // Photos — Firebase Storage URLs only (data: URIs filtered out)
-    photoUrls:     ((a.condition as any)?.photos ?? []).filter((p: string) => p && p.startsWith('http')),
+    photoUrls:     ((a.condition as any)?.photos ?? []).filter((p: string) => p && (p.startsWith('http') || p.startsWith('data:'))),
     createdAt: serverTimestamp(),
   }, { merge: true });
 }
