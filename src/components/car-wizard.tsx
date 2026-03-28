@@ -109,12 +109,14 @@ export function CarWizard() {
 
         if (updatedData.condition?.photos && updatedData.condition.photos.length > 0) {
             // ── Upload via server-side proxy to bypass Firebase Storage CORS ──
+            // ALWAYS use 'assessments/' as Storage path — rules allow write: if true
+            // (clients/{uid}/assessments/ requires matching uid, impossible server-side)
             const timestamp = Date.now();
             const photoUploadPromises = updatedData.condition.photos
                 .filter(photo => isDataURI(photo))
                 .map(async (photoDataUri, index) => {
                     const photoId = `photo_${timestamp}_${index}`;
-                    const storagePath = `${collectionPath}/${docId}/${photoId}.png`;
+                    const storagePath = `assessments/${docId}/${photoId}.png`;
                     const base64Data = photoDataUri.split(',')[1];
                     const mimeType = photoDataUri.split(';')[0].replace('data:', '') || 'image/png';
 

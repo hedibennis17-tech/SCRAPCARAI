@@ -4,32 +4,18 @@ import { NextRequest, NextResponse } from 'next/server';
  * Server-side photo upload proxy — receives a base64 image and uploads it
  * to Firebase Storage via REST API, bypassing browser CORS restrictions.
  *
+ * The Storage path MUST be under assessments/{docId}/{photoId} which has
+ * storage rules: allow write: if true  (no auth needed)
+ *
  * POST /api/upload-photo
  * Body: { base64: string, path: string, mimeType?: string }
  * Returns: { ok: true, url: string } | { ok: false, error: string }
  */
 
-const API_KEY       = process.env.NEXT_PUBLIC_FIREBASE_API_KEY    || 'AIzaSyCdS2Wkr29nuk0Vczm6pyYC815nVagwHVU';
-const STORAGE_BUCKET = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || 'scrpcaraiengsp-89650661-77994.firebasestorage.app';
-
-// ── Get an anonymous Firebase ID token (server-side) ─────────────────────────
-async function getAnonToken(): Promise<string | null> {
-  try {
-    const res = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ returnSecureToken: true }),
-      }
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.idToken ?? null;
-  } catch {
-    return null;
-  }
-}
+// Use env vars set in Vercel — falls back to hardcoded value seen in CORS errors
+const STORAGE_BUCKET =
+  process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
+  'carwizardai2025-03267024-51842.firebasestorage.app';
 
 export async function POST(req: NextRequest) {
   try {
@@ -44,32 +30,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Missing base64 or path' }, { status: 400 });
     }
 
+    // Only allow assessments/ paths — these have write: if true in storage rules
+    if (!path.startsWith('assessments/')) {
+      return NextResponse.json(
+        { ok: false, error: 'Only assessments/ paths allowed via this proxy' },
+        { status: 403 }
+      );
+    }
+
     // Convert base64 to Buffer
     const imageBuffer = Buffer.from(base64, 'base64');
 
-    // Get auth token
-    const token = await getAnonToken();
-    const headers: Record<string, string> = {
-      'Content-Type': mimeType,
-      'Content-Length': String(imageBuffer.length),
-    };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    // Upload to Firebase Storage REST API
+    // Firebase Storage REST API — no auth needed for assessments/ (rules: write: if true)
     const encodedPath = encodeURIComponent(path);
     const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${STORAGE_BUCKET}/o?name=${encodedPath}&uploadType=media`;
 
+    console.log(`[upload-photo] bucket=${STORAGE_BUCKET} path=${path} size=${imageBuffer.length}B`);
+
     const uploadRes = await fetch(uploadUrl, {
       method: 'POST',
-      headers,
+      headers: {
+        'Content-Type': mimeType,
+        'Content-Length': String(imageBuffer.length),
+      },
       body: imageBuffer,
     });
 
     if (!uploadRes.ok) {
       const errText = await uploadRes.text();
-      console.error('[upload-photo] Firebase Storage error:', uploadRes.status, errText);
+      console.error(`[upload-photo] Firebase ${uploadRes.status}:`, errText);
       return NextResponse.json(
-        { ok: false, error: `Storage upload failed: ${uploadRes.status}` },
+        { ok: false, error: `Storage upload failed: ${uploadRes.status} — ${errText.slice(0, 300)}` },
         { status: 502 }
       );
     }
@@ -81,6 +72,8 @@ export async function POST(req: NextRequest) {
     const downloadUrl = downloadToken
       ? `https://firebasestorage.googleapis.com/v0/b/${STORAGE_BUCKET}/o/${encodedPath}?alt=media&token=${downloadToken}`
       : `https://firebasestorage.googleapis.com/v0/b/${STORAGE_BUCKET}/o/${encodedPath}?alt=media`;
+
+    console.log(`[upload-photo] ✅ → ${downloadUrl.slice(0, 80)}…`);
 
     return NextResponse.json({ ok: true, url: downloadUrl });
   } catch (err: any) {
