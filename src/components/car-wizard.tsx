@@ -11,7 +11,7 @@ import type { Assessment, ClientInfoData, VehicleInfoData, ConditionWizardData, 
 import { getAssignedYard } from '@/lib/yards';
 import { useFirebase, setDocumentNonBlocking, initiateAnonymousSignIn } from '@/firebase';
 import { doc, collection, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+// Photo uploads go through /api/upload-photo (server-side) to bypass CORS
 
 import { WelcomeStep } from './steps/welcome-step';
 import { ClientInfoStep } from './steps/client-info-step';
@@ -69,7 +69,7 @@ export function CarWizard() {
   const [direction, setDirection] = useState(1);
   const [language, setLanguage] = useState<'en' | 'fr'>('en');
   const { toast } = useToast();
-  const { firestore, storage, auth, user, isUserLoading } = useFirebase();
+  const { firestore, auth, user, isUserLoading } = useFirebase();
 
   const steps = language === 'fr' ? steps_fr : steps_en;
   const TOTAL_STEPS = steps.length - 1;
@@ -94,7 +94,7 @@ export function CarWizard() {
     
     setFormData(updatedData);
 
-    if (firestore && storage && user) {
+    if (firestore && user) {
         const collectionPath = user.isAnonymous ? 'assessments' : `clients/${user.uid}/assessments`;
         const collectionRef = collection(firestore, collectionPath);
         
@@ -108,23 +108,33 @@ export function CarWizard() {
         }
 
         if (updatedData.condition?.photos && updatedData.condition.photos.length > 0) {
+            // ── Upload via server-side proxy to bypass Firebase Storage CORS ──
+            const timestamp = Date.now();
             const photoUploadPromises = updatedData.condition.photos
-                .filter(photo => isDataURI(photo)) 
+                .filter(photo => isDataURI(photo))
                 .map(async (photoDataUri, index) => {
-                    const photoId = `photo_${Date.now()}_${index}`;
-                    const storageRef = ref(storage, `${collectionPath}/${docId}/${photoId}.png`);
+                    const photoId = `photo_${timestamp}_${index}`;
+                    const storagePath = `${collectionPath}/${docId}/${photoId}.png`;
                     const base64Data = photoDataUri.split(',')[1];
-                    await uploadString(storageRef, base64Data, 'base64');
-                    return getDownloadURL(storageRef);
+                    const mimeType = photoDataUri.split(';')[0].replace('data:', '') || 'image/png';
+
+                    const res = await fetch('/api/upload-photo', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ base64: base64Data, path: storagePath, mimeType }),
+                    });
+
+                    const json = await res.json();
+                    if (!json.ok) throw new Error(json.error || 'Upload failed');
+                    return json.url as string;
                 });
-                
+
             try {
                 const existingUrls = updatedData.condition.photos.filter(photo => !isDataURI(photo));
                 const newUrls = await Promise.all(photoUploadPromises);
                 updatedData.condition.photos = [...existingUrls, ...newUrls];
-                // ✅ FIX: push Storage URLs back into React state so that
+                // ✅ Push Storage URLs back into React state so that
                 // finalizeTransaction() receives https:// URLs not base64 data URIs.
-                // Without this, writeVehicle filtered out all photos → empty photoUrls[].
                 setFormData(prev => ({
                     ...prev,
                     condition: { ...prev.condition, photos: updatedData.condition!.photos }
