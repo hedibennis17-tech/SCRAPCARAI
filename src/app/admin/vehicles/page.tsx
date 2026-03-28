@@ -265,20 +265,26 @@ export default function AdminVehiclesPage() {
                       <td>
                         <button
                           onClick={() => setPhotoVehicle(v)}
-                          title={photoCount > 0 ? `Voir ${photoCount} photo(s)` : 'Aucune photo'}
+                          title={photoCount > 0 ? `Voir ${photoCount} photo(s)` : v.assessmentId ? 'Cliquer pour vérifier les photos' : 'Aucune photo'}
                           style={{
                             display: 'inline-flex', alignItems: 'center', gap: 5,
                             padding: '5px 10px',
-                            background: photoCount > 0 ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)',
-                            border: `1px solid ${photoCount > 0 ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                            background: photoCount > 0
+                              ? 'rgba(99,102,241,0.15)'
+                              : v.assessmentId ? 'rgba(255,165,0,0.10)' : 'rgba(255,255,255,0.04)',
+                            border: `1px solid ${photoCount > 0
+                              ? 'rgba(99,102,241,0.4)'
+                              : v.assessmentId ? 'rgba(255,165,0,0.35)' : 'rgba(255,255,255,0.08)'}`,
                             borderRadius: 8,
-                            color: photoCount > 0 ? 'var(--t-primary)' : 'rgba(255,255,255,0.25)',
+                            color: photoCount > 0
+                              ? 'var(--t-primary)'
+                              : v.assessmentId ? 'rgba(255,180,0,0.9)' : 'rgba(255,255,255,0.25)',
                             fontSize: '0.75rem', fontWeight: 600,
                             cursor: 'pointer', whiteSpace: 'nowrap',
                           }}
                         >
                           <Images style={{ width: 13, height: 13 }} />
-                          {photoCount > 0 ? photoCount : '0'}
+                          {photoCount > 0 ? photoCount : v.assessmentId ? '?' : '0'}
                         </button>
                       </td>
 

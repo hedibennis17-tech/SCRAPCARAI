@@ -360,7 +360,7 @@ export function FinalStep({ onRestart, data, lang }: FinalStepProps) {
   const doNum = data.summary?.deliveryOrder ?? '—';
 
   return (
-    <div className="flex flex-col items-center justify-center h-full p-6 text-center overflow-y-auto gap-4">
+    <div className="flex flex-col items-center justify-center h-full p-4 sm:p-6 text-center overflow-y-auto gap-3 sm:gap-4">
 
       <PartyPopper className="h-14 w-14 text-primary" />
       <h2 className="text-2xl font-bold font-headline">{c.title}</h2>
@@ -379,11 +379,12 @@ export function FinalStep({ onRestart, data, lang }: FinalStepProps) {
           <p className="font-mono text-lg"><span className="font-semibold">{c.doNumber}</span> {doNum}</p>
 
           {/* PDF download buttons */}
-          <div className="flex gap-3 justify-center pt-3">
+          <div className="flex flex-wrap gap-3 justify-center pt-3">
             <Button
               size="sm" variant="outline"
               onClick={() => downloadPdf('PO')}
               disabled={pdfLoading !== null}
+              className="flex-1 sm:flex-none min-w-[120px]"
             >
               {pdfLoading === 'PO'
                 ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />{c.generatingPdf}</>
@@ -393,6 +394,7 @@ export function FinalStep({ onRestart, data, lang }: FinalStepProps) {
               size="sm" variant="outline"
               onClick={() => downloadPdf('DO')}
               disabled={pdfLoading !== null}
+              className="flex-1 sm:flex-none min-w-[120px]"
             >
               {pdfLoading === 'DO'
                 ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />{c.generatingPdf}</>

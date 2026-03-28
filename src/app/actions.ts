@@ -26,7 +26,7 @@ function buildHtmlBody(assessment: Assessment, lang: 'en' | 'fr'): string {
     const co = assessment.condition;
     const val = assessment.valuation;
     const tow = assessment.towing;
-    const photos = co?.photos || [];
+    const photos = (co?.photos || []).filter((p: string) => p && p.startsWith('http'));
 
     const i18n = {
         en: {
