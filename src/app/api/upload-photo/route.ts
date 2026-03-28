@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // Use env vars set in Vercel — falls back to hardcoded value seen in CORS errors
 const STORAGE_BUCKET =
   process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
-  'scrpcaraiengsp-89650661-77994.appspot.com';
+  'scrpcaraiengsp-89650661-77994.firebasestorage.app';
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,7 +43,8 @@ export async function POST(req: NextRequest) {
 
     // Firebase Storage REST API — no auth needed for assessments/ (rules: write: if true)
     const encodedPath = encodeURIComponent(path);
-    const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${STORAGE_BUCKET}/o?name=${encodedPath}&uploadType=media`;
+    // Correct Firebase Storage REST upload URL format: /o/PATH?uploadType=media
+    const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${STORAGE_BUCKET}/o/${encodedPath}?uploadType=media`;
 
     console.log(`[upload-photo] bucket=${STORAGE_BUCKET} path=${path} size=${imageBuffer.length}B`);
 
