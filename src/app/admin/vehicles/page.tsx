@@ -17,16 +17,25 @@ const STATUS_OPTIONS = [
 
 const PARTS = ['Catalyst', 'Engine', 'Transmission', 'Battery', 'Wheels'];
 
+// ── Helper: extract HTTP photo URLs from a vehicle document ──────────────────
+function getHttpPhotos(v: any): string[] {
+  // Primary source: photoUrls field (already filtered to http)
+  const fromPhotoUrls: string[] = (v.photoUrls ?? []).filter((p: string) => p && p.startsWith('http'));
+  if (fromPhotoUrls.length > 0) return fromPhotoUrls;
+  // Fallback: condition.photos (may contain http URLs if upload succeeded)
+  const fromCondition: string[] = ((v.condition?.photos) ?? []).filter((p: string) => p && p.startsWith('http'));
+  return fromCondition;
+}
+
 function PhotoModal({ vehicle, firestore, onClose }: { vehicle: any; firestore: any; onClose: () => void }) {
-  const [photos, setPhotos] = useState<string[]>(vehicle.photoUrls ?? []);
+  const [photos, setPhotos] = useState<string[]>(() => getHttpPhotos(vehicle));
   const [fetchingPhotos, setFetchingPhotos] = useState(false);
   const [current, setCurrent] = useState(0);
 
-  // If no photos in vehicle doc, try fetching from assessments collection
+  // If no HTTP photos in vehicle doc, try fetching from assessments collection
   useEffect(() => {
-    const storedPhotos: string[] = vehicle.photoUrls ?? [];
-    const hasRealPhotos = storedPhotos.some((p: string) => p && p.startsWith('http'));
-    if (!hasRealPhotos && vehicle.assessmentId && firestore) {
+    const localPhotos = getHttpPhotos(vehicle);
+    if (localPhotos.length === 0 && vehicle.assessmentId && firestore) {
       setFetchingPhotos(true);
       getDoc(doc(firestore, 'assessments', vehicle.assessmentId))
         .then(snap => {
@@ -239,7 +248,9 @@ export default function AdminVehiclesPage() {
               <tbody>
                 {filtered.length > 0 ? paged.map((v: any) => {
                   const missing: string[] = v.missingParts ?? [];
-                  const photoCount: number = (v.photoUrls ?? []).length;
+                  // Count HTTP photos from both photoUrls and condition.photos
+                  const httpPhotos = getHttpPhotos(v);
+                  const photoCount: number = httpPhotos.length;
                   return (
                     <tr key={v.id} className="admin-table-row">
                       <td>

@@ -19,7 +19,8 @@ export async function GET(request: Request) {
     // Only allow Firebase Storage URLs for security
     const allowed =
       url.startsWith('https://firebasestorage.googleapis.com/') ||
-      url.startsWith('https://storage.googleapis.com/');
+      url.startsWith('https://storage.googleapis.com/') ||
+      /^https:\/\/[a-zA-Z0-9_-]+\.firebasestorage\.app\//.test(url);
 
     if (!allowed) {
       return NextResponse.json({ ok: false, error: 'URL not allowed' }, { status: 403 });

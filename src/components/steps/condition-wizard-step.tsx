@@ -19,10 +19,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { conditionWizard_schema, type ConditionWizardData } from '@/lib/schemas';
 import type { Assessment } from '@/types';
-import { ArrowLeft, ArrowRight, ImagePlus, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ImagePlus, X, Loader2 } from 'lucide-react';
 import { Separator } from '../ui/separator';
-import { ChangeEvent, useRef } from 'react';
-import Image from 'next/image';
+import { ChangeEvent, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 
@@ -69,10 +68,11 @@ const content = {
         incompleteDetailsLabel: "What is missing?",
         incompleteDetailsPlaceholder: "e.g., Missing a side mirror, radio is gone...",
         photosTitle: "Vehicle Photos",
-        photosDescription: "Upload up to 5 photos of your vehicle (max 20MB each).",
+        photosDescription: "Upload up to 5 photos of your vehicle (max 10MB each).",
         addPhotosButton: "Add Photos",
         maxFilesError: "You can only upload a maximum of 5 photos.",
-        fileTooLargeError: "File size exceeds 20MB.",
+        fileTooLargeError: "File size exceeds 10MB. Please compress or resize the image.",
+        uploadingPhotos: "Uploading photos…",
         backButton: "Back",
         nextButton: "Next",
     },
@@ -100,13 +100,61 @@ const content = {
         incompleteDetailsLabel: "Que manque-t-il ?",
         incompleteDetailsPlaceholder: "ex: Miroir latéral manquant, radio enlevée...",
         photosTitle: "Photos du véhicule",
-        photosDescription: "Téléchargez jusqu'à 5 photos (max 20 Mo chacune).",
+        photosDescription: "Téléchargez jusqu'à 5 photos (max 10 Mo chacune).",
         addPhotosButton: "Ajouter des photos",
         maxFilesError: "Vous ne pouvez télécharger que 5 photos au maximum.",
-        fileTooLargeError: "Le fichier dépasse 20 Mo.",
+        fileTooLargeError: "Le fichier dépasse 10 Mo. Veuillez compresser ou redimensionner l'image.",
+        uploadingPhotos: "Téléchargement des photos…",
         backButton: "Retour",
         nextButton: "Suivant",
     }
+}
+
+// ── Compress image client-side before upload ─────────────────────────────────
+async function compressImage(file: File, maxSizeMB = 2, maxDimension = 1600): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+
+        // Scale down if too large
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { reject(new Error('Canvas not supported')); return; }
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Try quality 0.85 first, then reduce if still too large
+        let quality = 0.85;
+        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+        const maxBytes = maxSizeMB * 1024 * 1024;
+
+        while (dataUrl.length * 0.75 > maxBytes && quality > 0.3) {
+          quality -= 0.1;
+          dataUrl = canvas.toDataURL('image/jpeg', quality);
+        }
+
+        resolve(dataUrl);
+      };
+      img.onerror = reject;
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 
@@ -114,6 +162,7 @@ export function ConditionWizardStep({ onNext, onBack, data, lang }: ConditionWiz
   const c = content[lang];
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingCount, setUploadingCount] = useState(0);
   
   const form = useForm<ConditionWizardData>({
     resolver: zodResolver(conditionWizard_schema(lang)),
@@ -141,29 +190,43 @@ export function ConditionWizardStep({ onNext, onBack, data, lang }: ConditionWiz
   const isComplete = form.watch('isComplete');
   const photos = form.watch('photos') || [];
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      const files = Array.from(event.target.files);
-      const totalPhotos = photos.length + files.length;
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || event.target.files.length === 0) return;
 
-      if (totalPhotos > 5) {
-        toast({ variant: 'destructive', title: 'Error', description: c.maxFilesError });
+    const files = Array.from(event.target.files);
+    // Reset input so same file can be re-selected
+    event.target.value = '';
+
+    const currentPhotos = form.getValues('photos') || [];
+    const totalPhotos = currentPhotos.length + files.length;
+
+    if (totalPhotos > 5) {
+      toast({ variant: 'destructive', title: 'Error', description: c.maxFilesError });
+      return;
+    }
+
+    // Validate sizes (10 MB limit before compression)
+    for (const file of files) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast({ variant: 'destructive', title: 'Error', description: c.fileTooLargeError });
         return;
       }
-      
-      files.forEach(file => {
-        if (file.size > 20 * 1024 * 1024) { 
-            toast({ variant: 'destructive', title: 'Error', description: c.fileTooLargeError });
-            return;
-        }
+    }
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const newPhotos = [...(form.getValues('photos') || []), e.target?.result as string];
-          form.setValue('photos', newPhotos, { shouldValidate: true });
-        };
-        reader.readAsDataURL(file);
-      });
+    setUploadingCount(files.length);
+
+    try {
+      const compressedDataUris = await Promise.all(
+        files.map(file => compressImage(file, 2, 1600))
+      );
+
+      const newPhotos = [...(form.getValues('photos') || []), ...compressedDataUris];
+      form.setValue('photos', newPhotos, { shouldValidate: true });
+    } catch (err) {
+      console.error('[ConditionWizardStep] Compression error:', err);
+      toast({ variant: 'destructive', title: 'Error', description: lang === 'fr' ? 'Erreur lors du traitement des images.' : 'Error processing images.' });
+    } finally {
+      setUploadingCount(0);
     }
   };
 
@@ -426,14 +489,24 @@ export function ConditionWizardStep({ onNext, onBack, data, lang }: ConditionWiz
           <div className="space-y-4">
             <h4 className="text-lg font-semibold">{c.photosTitle}</h4>
             <FormDescription>{c.photosDescription}</FormDescription>
+
+            {/* Upload progress indicator */}
+            {uploadingCount > 0 && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <span>{c.uploadingPhotos}</span>
+              </div>
+            )}
+
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-4">
               {photos.map((photo, index) => (
                 <div key={index} className="relative aspect-square">
-                  <Image
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
                     src={photo}
                     alt={`Vehicle photo ${index + 1}`}
-                    layout="fill"
-                    className="rounded-md object-cover"
+                    className="rounded-md object-cover w-full h-full"
+                    style={{ aspectRatio: '1/1' }}
                   />
                   <Button
                     type="button"
@@ -449,9 +522,13 @@ export function ConditionWizardStep({ onNext, onBack, data, lang }: ConditionWiz
               {photos.length < 5 && (
                 <div 
                   className="aspect-square rounded-md border-2 border-dashed border-muted-foreground flex items-center justify-center cursor-pointer hover:bg-muted/50"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => !uploadingCount && fileInputRef.current?.click()}
+                  style={{ opacity: uploadingCount > 0 ? 0.5 : 1 }}
                 >
-                  <ImagePlus className="h-8 w-8 text-muted-foreground" />
+                  {uploadingCount > 0
+                    ? <Loader2 className="h-8 w-8 text-muted-foreground animate-spin" />
+                    : <ImagePlus className="h-8 w-8 text-muted-foreground" />
+                  }
                 </div>
               )}
             </div>
@@ -460,7 +537,7 @@ export function ConditionWizardStep({ onNext, onBack, data, lang }: ConditionWiz
               ref={fileInputRef}
               onChange={handleFileChange}
               multiple
-              accept="image/jpeg,image/png"
+              accept="image/*"
               className="hidden"
             />
           </div>
@@ -470,7 +547,7 @@ export function ConditionWizardStep({ onNext, onBack, data, lang }: ConditionWiz
               <ArrowLeft className="mr-2 h-4 w-4" />
               {c.backButton}
             </Button>
-            <Button type="submit">
+            <Button type="submit" disabled={uploadingCount > 0}>
               {c.nextButton}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>

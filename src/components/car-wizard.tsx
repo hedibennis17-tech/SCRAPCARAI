@@ -11,7 +11,6 @@ import type { Assessment, ClientInfoData, VehicleInfoData, ConditionWizardData, 
 import { getAssignedYard } from '@/lib/yards';
 import { useFirebase, setDocumentNonBlocking, initiateAnonymousSignIn } from '@/firebase';
 import { doc, collection, serverTimestamp } from 'firebase/firestore';
-// Photo uploads go through /api/upload-photo (server-side) to bypass CORS
 
 import { WelcomeStep } from './steps/welcome-step';
 import { ClientInfoStep } from './steps/client-info-step';
@@ -61,7 +60,28 @@ const generateOrderNumber = (type: 'PO' | 'DO', yardId: string | undefined) => {
     return `${type}-${id}-${year}-${month}-${sequence}`;
 }
 
-const isDataURI = (s: string) => s.startsWith('data:image');
+const isDataURI = (s: string) => typeof s === 'string' && s.startsWith('data:image');
+
+// ── Upload a single data URI via the server-side proxy ───────────────────────
+async function uploadSinglePhoto(photoDataUri: string, storagePath: string): Promise<string> {
+    const base64Data = photoDataUri.split(',')[1];
+    const mimeType = photoDataUri.split(';')[0].replace('data:', '') || 'image/jpeg';
+
+    const res = await fetch('/api/upload-photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64: base64Data, path: storagePath, mimeType }),
+    });
+
+    if (!res.ok) {
+        const text = await res.text().catch(() => 'unknown error');
+        throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+    }
+
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Upload failed');
+    return json.url as string;
+}
 
 export function CarWizard() {
   const [step, setStep] = useState(0);
@@ -107,48 +127,61 @@ export function CarWizard() {
             setFormData(prev => ({...prev, id: docId}));
         }
 
+        // ── Upload photos via server-side proxy ──────────────────────────────
+        // Always use assessments/ path (storage rules: write: if true)
         if (updatedData.condition?.photos && updatedData.condition.photos.length > 0) {
-            // ── Upload via server-side proxy to bypass Firebase Storage CORS ──
-            // ALWAYS use 'assessments/' as Storage path — rules allow write: if true
-            // (clients/{uid}/assessments/ requires matching uid, impossible server-side)
             const timestamp = Date.now();
-            const photoUploadPromises = updatedData.condition.photos
-                .filter(photo => isDataURI(photo))
-                .map(async (photoDataUri, index) => {
-                    const photoId = `photo_${timestamp}_${index}`;
-                    const storagePath = `assessments/${docId}/${photoId}.png`;
-                    const base64Data = photoDataUri.split(',')[1];
-                    const mimeType = photoDataUri.split(';')[0].replace('data:', '') || 'image/png';
+            const photosToUpload = updatedData.condition.photos
+                .map((photo, originalIndex) => ({ photo, originalIndex }))
+                .filter(({ photo }) => isDataURI(photo));
 
-                    const res = await fetch('/api/upload-photo', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ base64: base64Data, path: storagePath, mimeType }),
-                    });
+            if (photosToUpload.length > 0) {
+                const uploadResults: Array<{ originalIndex: number; url: string | null }> = 
+                    await Promise.all(
+                        photosToUpload.map(async ({ photo, originalIndex }, uploadIndex) => {
+                            const photoId = `photo_${timestamp}_${uploadIndex}`;
+                            const storagePath = `assessments/${docId}/${photoId}.jpg`;
+                            try {
+                                const url = await uploadSinglePhoto(photo, storagePath);
+                                console.log(`[CarWizard] ✅ Photo ${uploadIndex + 1} uploaded → ${url.slice(0, 60)}…`);
+                                return { originalIndex, url };
+                            } catch (err: any) {
+                                console.error(`[CarWizard] ❌ Photo ${uploadIndex + 1} upload failed:`, err.message);
+                                // Keep the data URI as fallback so PDF still works
+                                return { originalIndex, url: null };
+                            }
+                        })
+                    );
 
-                    const json = await res.json();
-                    if (!json.ok) throw new Error(json.error || 'Upload failed');
-                    return json.url as string;
-                });
+                // Rebuild photos array: replace data URIs with Storage URLs where available
+                const newPhotos = [...updatedData.condition.photos];
+                let anyFailed = false;
+                for (const { originalIndex, url } of uploadResults) {
+                    if (url) {
+                        newPhotos[originalIndex] = url;
+                    } else {
+                        anyFailed = true;
+                        // Keep data URI as fallback — PDF will still embed it
+                    }
+                }
 
-            try {
-                const existingUrls = updatedData.condition.photos.filter(photo => !isDataURI(photo));
-                const newUrls = await Promise.all(photoUploadPromises);
-                updatedData.condition.photos = [...existingUrls, ...newUrls];
-                // ✅ Push Storage URLs back into React state so that
-                // finalizeTransaction() receives https:// URLs not base64 data URIs.
+                updatedData.condition.photos = newPhotos;
+
+                // Push updated photos back into React state
                 setFormData(prev => ({
                     ...prev,
-                    condition: { ...prev.condition, photos: updatedData.condition!.photos }
+                    condition: { ...prev.condition, photos: newPhotos } as any,
                 }));
-            } catch (error) {
-                console.error("Error uploading photos:", error);
-                toast({
-                    variant: "destructive",
-                    title: language === 'fr' ? "Échec du téléchargement" : "Photo Upload Failed",
-                    description: language === 'fr' ? "Un problème est survenu lors du téléchargement de vos photos." : "There was an issue uploading your photos."
-                });
-                return; 
+
+                if (anyFailed) {
+                    toast({
+                        variant: "destructive",
+                        title: language === 'fr' ? "Avertissement" : "Warning",
+                        description: language === 'fr'
+                            ? "Certaines photos n'ont pas pu être téléchargées sur le serveur, mais elles seront incluses dans le PDF."
+                            : "Some photos could not be uploaded to storage, but they will still be included in the PDF.",
+                    });
+                }
             }
         }
         

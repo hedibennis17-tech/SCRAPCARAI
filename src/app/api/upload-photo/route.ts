@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // Use env vars set in Vercel — falls back to hardcoded value seen in CORS errors
 const STORAGE_BUCKET =
   process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
-  'carwizardai2025-03267024-51842.firebasestorage.app';
+  'scrpcaraiengsp-89650661-77994.firebasestorage.app';
 
 export async function POST(req: NextRequest) {
   try {
